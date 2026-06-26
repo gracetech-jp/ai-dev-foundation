@@ -5,7 +5,8 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "mounts": [
     "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated",
-    "source=${localWorkspaceFolder}/..,target=/home/node/projects,type=bind,consistency=delegated"
+    "source=${localWorkspaceFolder}/..,target=/home/node/projects,type=bind,consistency=delegated",
+    "source=/home/lovmf/.ssh,target=/home/node/.ssh,type=bind,readonly"
   ],
   "remoteUser": "node",
   "customizations": {
