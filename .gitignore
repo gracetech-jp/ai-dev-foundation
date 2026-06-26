@@ -1,4 +1,5 @@
 .claude/
+!templates/.claude/
 .env
 node_modules/
 dist/

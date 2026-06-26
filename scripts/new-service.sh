@@ -76,4 +76,6 @@ echo ""
 echo "作成されたファイル:"
 find "${TARGET}" -not -path '*/.claude/*' | sort
 echo ""
-echo "次のステップ: cd ~/projects/${SERVICE_NAME} && code ."
+
+# VS Codeで新規ウィンドウとして開く
+code "${TARGET}"

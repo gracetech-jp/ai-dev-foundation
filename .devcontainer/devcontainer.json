@@ -1,0 +1,25 @@
+{
+  "name": "Claude Code Dev Container",
+  "build": { "dockerfile": "Dockerfile" },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated",
+    "source=${localWorkspaceFolder}/..,target=/home/node/projects,type=bind,consistency=delegated"
+  ],
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "postCreateCommand": "echo 'Container ready! Run: claude'"
+}
