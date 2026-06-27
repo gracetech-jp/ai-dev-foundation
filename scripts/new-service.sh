@@ -13,7 +13,7 @@ fi
 echo "=== ${SERVICE_NAME} の雛形を作成します ==="
 
 # ディレクトリ作成
-mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules,src}
+mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules}
 
 # devcontainer設定をコピー
 cp /workspace/templates/.devcontainer/Dockerfile "${TARGET}/.devcontainer/"
