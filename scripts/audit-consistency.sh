@@ -42,18 +42,26 @@ else
 	done
 fi
 
-echo "[audit] (3) 新サービスへのルール配布漏れ検査..."
+echo "[audit] (3) 新サービスへの配布漏れ検査..."
+NS="scripts/new-service.sh"
 # new-service.sh が docs/rules 配下を新サービスへ配布しているか。
 # 個別 cp のハードコードだと追加ルールの配布漏れが起きるため、ディレクトリ単位の配布を必須とする。
-if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' scripts/new-service.sh; then
+if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; then
 	# ディレクトリ一括コピーが見当たらない場合、個別コピーの取りこぼしを検出する。
 	for f in docs/rules/*.md; do
 		base="$(basename "$f")"
-		if ! grep -q "$base" scripts/new-service.sh; then
+		if ! grep -q "$base" "$NS"; then
 			report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
 		fi
 	done
 fi
+# 品質ゲート・逆輸入プロセス一式が新サービスへ配布されているか（配布行の削除・退化を検出）。
+for req in scripts/pre-push scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile; do
+	base="$(basename "$req")"
+	if ! grep -q "$base" "$NS"; then
+		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
+	fi
+done
 
 echo "[audit] (4) リネーム残渣スキャン（データ駆動）..."
 # 旧名→新名のリネームを行ったら、この配列に "旧名|新名" を1行追加する。
