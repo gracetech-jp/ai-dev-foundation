@@ -35,6 +35,11 @@ cp /workspace/templates/scripts/audit-consistency.sh "${TARGET}/scripts/"
 cp /workspace/scripts/pre-push "${TARGET}/scripts/"
 chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push"
 
+# 逆輸入プロセス一式を新規サービスへ配布
+cp /workspace/scripts/backport-to-common.sh "${TARGET}/scripts/"
+cp /workspace/.backport-manifest "${TARGET}/.backport-manifest"
+chmod +x "${TARGET}/scripts/backport-to-common.sh"
+
 # SERVICE.mdをテンプレートからコピー
 cp /workspace/templates/SERVICE.md.template "${TARGET}/SERVICE.md"
 sed -i "s/\[サービス名\]/${SERVICE_NAME}/g" "${TARGET}/SERVICE.md"

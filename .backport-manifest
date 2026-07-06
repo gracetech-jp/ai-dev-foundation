@@ -1,0 +1,10 @@
+# .backport-manifest — 共通所有ファイルの一覧（逆輸入の対象）
+# scripts/backport-to-common.sh がここに列挙したファイルだけを共通リポへ還流する。
+# ルール: 対象はスタック中立に保つ。サービス固有は SERVICE.md 等へ分離（詳細: docs/rules/backport.md）。
+# 注: .claude 配下は共通リポでは templates/.claude/ に置かれ 1:1 対応しないため対象外（別途手動同期）。
+
+CLAUDE.md
+docs/rules/
+scripts/pre-push
+scripts/backport-to-common.sh
+.backport-manifest
