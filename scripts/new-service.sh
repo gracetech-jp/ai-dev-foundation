@@ -23,6 +23,11 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 
 # Claude設定をコピー
 cp /workspace/templates/.claude/settings.json "${TARGET}/.claude/settings.json"
+# Claude skills・SessionStartルール注入スクリプトを配布
+mkdir -p "${TARGET}/.claude/scripts" "${TARGET}/.claude/skills"
+cp /workspace/templates/.claude/scripts/session-start-rules.sh "${TARGET}/.claude/scripts/"
+cp -a /workspace/templates/.claude/skills/. "${TARGET}/.claude/skills/"
+chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh"
 
 # 共通ルールをそのままコピー
 # docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）

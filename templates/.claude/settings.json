@@ -4,13 +4,32 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git status:*)",
+      "Bash(git add:*)",
       "Bash(npm test:*)",
       "Bash(npm run lint:*)"
     ],
     "deny": [
-      "Bash(git push --force:*)",
+      "Bash(git push:*)",
       "Bash(rm -rf:*)",
-      "Bash(sudo rm:*)"
+      "Bash(sudo rm:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/session-start-rules.sh\"",
+            "timeout": 10,
+            "statusMessage": "プロジェクトルールを読み込み中..."
+          }
+        ]
+      }
     ]
   }
 }
