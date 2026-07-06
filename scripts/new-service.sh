@@ -13,7 +13,7 @@ fi
 echo "=== ${SERVICE_NAME} の雛形を作成します ==="
 
 # ディレクトリ作成
-mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules}
+mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules,scripts}
 
 # devcontainer設定をコピー
 cp /workspace/templates/.devcontainer/Dockerfile "${TARGET}/.devcontainer/"
@@ -25,11 +25,15 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 cp /workspace/templates/.claude/settings.json "${TARGET}/.claude/settings.json"
 
 # 共通ルールをそのままコピー
+# docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）
 cp /workspace/CLAUDE.md "${TARGET}/CLAUDE.md"
-cp /workspace/docs/rules/code-style.md "${TARGET}/docs/rules/"
-cp /workspace/docs/rules/testing.md "${TARGET}/docs/rules/"
-cp /workspace/docs/rules/security.md "${TARGET}/docs/rules/"
-cp /workspace/docs/rules/git.md "${TARGET}/docs/rules/"
+cp /workspace/docs/rules/*.md "${TARGET}/docs/rules/"
+
+# 品質ゲート一式（Makefile ターゲット契約・pre-push フック・監査スクリプト雛形）を配布
+cp /workspace/templates/Makefile "${TARGET}/Makefile"
+cp /workspace/templates/scripts/audit-consistency.sh "${TARGET}/scripts/"
+cp /workspace/scripts/pre-push "${TARGET}/scripts/"
+chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push"
 
 # SERVICE.mdをテンプレートからコピー
 cp /workspace/templates/SERVICE.md.template "${TARGET}/SERVICE.md"
