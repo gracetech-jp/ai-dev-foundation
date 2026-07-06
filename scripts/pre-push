@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# git pre-push フック — push 前に整合性チェック・単体テストを実行
+# インストール: make install-hooks
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] 整合性監査（grep整合性・構造監査・マイグレーションdrift）を実行中..."
+if ! (cd "$ROOT" && make audit-all); then
+  echo ""
+  echo "[pre-push] ❌ 整合性監査が失敗しました。push をブロックします。"
+  echo "           問題を修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 整合性監査通過"
+
+echo ""
+echo "[pre-push] 単体テストを実行中..."
+if ! (cd "$ROOT" && make test); then
+  echo ""
+  echo "[pre-push] ❌ 単体テストが失敗しました。push をブロックします。"
+  echo "           テストを修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 単体テスト通過"
