@@ -27,7 +27,7 @@
 - **`git push`はClaude Codeが自ら実行しない。「プッシュして」と言われても、実行すべきコマンドを提示するのみとし、ユーザーがターミナルで手動実行する**
 - **整合性監査を定期的に実施する**（詳細: `docs/rules/consistency.md`）
 
-> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny` でも技術的にブロックされている（プロンプト遵守のみに頼らない二重の防御）。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
+> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny` でも技術的にブロックされている（プロンプト遵守のみに頼らない二重の防御）。加えて `PreToolUse` フック `.claude/scripts/guard-dangerous.sh` が Bash 実行前にコマンドを検査し、`rm -fr`・`git push -f` のような **deny の文字列一致をすり抜ける表記ゆれ**、および `cat .env` のような **bash 経由の秘密ファイル読み取り**を決定論的に遮断する（exit 2）。`.env` 系の Read も `permissions.deny` で拒否。DBマイグレーション・パッケージ導入・ワークフロー実行(`gh workflow run`)は `permissions.ask` で実行前確認が入る。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
 
 ---
 
@@ -46,8 +46,8 @@
 詳細: `docs/rules/code-style.md`
 
 - インデント：TAB / 文字コード：UTF-8 / 改行：LF
-- 命名：変数・関数=camelCase、クラス=PascalCase、定数=UPPER_SNAKE_CASE、ファイル=kebab-case
-- TypeScript: `any`禁止、引数・戻り値に必ず型を付ける
+- 命名：言語のエコシステム慣習に従い一貫させる（変数・関数・クラス・定数・ファイル名の具体的な割り当ては各サービスの`SERVICE.md`）
+- 静的型付け言語では引数・戻り値に必ず型を付ける（型の握りつぶしは最小限に）
 
 ---
 
@@ -94,4 +94,5 @@
 - 各ルールは1箇所にのみ記載する（同じ内容をCLAUDE.md・SERVICE.md・docs/rules/に重複して書かない。詳細が必要な場合は「詳細: `docs/rules/xxx.md`」の参照のみ置く）
 - CLAUDE.md本体は200行以内を目安に保つ。超えそうな場合は個別ルールを`docs/rules/`に切り出し、本体には要点のみ残す
 - AIが同じ間違いを繰り返した場合、原因と理由（なぜそのルールが必要か）を明記した1行を該当ルールファイルに追記する。理由のない抽象的なルール（例：「きれいなコードを書く」）は追加しない
-- `SERVICE.md`の技術スタック表・ディレクトリ構成・環境変数表は、実装（`requirements.txt`・`package.json`・`config.py`・`modules/`配下）を正としてズレがないか、`docs/rules/consistency.md`の監査対象に含める（詳細: 同ファイル【7】、自動チェック: `scripts/audit-consistency.sh`）
+- `SERVICE.md`の技術スタック表・ディレクトリ構成・環境変数表は、実装（依存定義・設定ファイル・モジュール構成）を正としてズレがないか、整合性監査の対象に含める（原則: `docs/rules/consistency.md`、具体手順・自動チェック: `docs/service-rules/consistency.md`）
+- 共通ルール（`docs/rules/`）は基盤リポ `ai-dev-foundation` を正とする。サービス側で改善したら閉じずに逆輸入して全サービスへ配る（手順: `docs/rules/backport.md`・`scripts/backport-to-common.sh`）。サービス固有は `SERVICE.md`・`docs/service-rules/` に置き、共通ルールに混ぜない
