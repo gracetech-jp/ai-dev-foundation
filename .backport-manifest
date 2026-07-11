@@ -11,4 +11,6 @@ CLAUDE.md
 COMMAND.md
 docs/rules/
 scripts/pre-push
+scripts/commit-msg
+scripts/check-coverage.sh
 scripts/backport-to-common.sh

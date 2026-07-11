@@ -31,3 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make test
+
+  # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする。
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (working tree)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.18.4 detect --source=/repo --no-git --redact --no-banner

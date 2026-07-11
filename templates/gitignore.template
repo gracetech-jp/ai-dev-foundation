@@ -7,6 +7,13 @@
 !.claude/agents/
 !.claude/agents/**
 .env
+# 秘密ファイルは誤コミット防止のため追跡しない（読取は settings.json deny と guard で別途遮断）
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
 .DS_Store
 *.log
 CLAUDE.local.md

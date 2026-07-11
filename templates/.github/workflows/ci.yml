@@ -44,3 +44,31 @@ jobs:
         with:
           runCmd: make test
           push: never
+
+  # カバレッジのフロア検証（一方向ラチェット。quality-gates.md §5）。雛形は未実装だと赤（fail-closed）。
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make coverage
+          push: never
+
+  # 依存パッケージの脆弱性監査（security.md）。雛形は未実装だと赤（fail-closed）。
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make audit-deps
+          push: never
+
+  # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする（スタック非依存）。
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (working tree)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.18.4 detect --source=/repo --no-git --redact --no-banner

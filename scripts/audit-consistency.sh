@@ -35,7 +35,7 @@ echo "[audit] (2) make ターゲット契約の検査..."
 if [ ! -f "$ROOT/Makefile" ]; then
 	report "Makefile が存在しない（quality-gates.md が make ターゲットを前提にしている）"
 else
-	for target in test lint audit-all install-hooks; do
+	for target in test lint coverage audit-all audit-deps install-hooks; do
 		if ! grep -qE "^${target}:" "$ROOT/Makefile"; then
 			report "Makefile に必須ターゲット '${target}:' が無い（docs/rules/quality-gates.md 参照）"
 		fi
@@ -56,7 +56,7 @@ if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; th
 	done
 fi
 # 品質ゲート・逆輸入プロセス一式が新サービスへ配布されているか（配布行の削除・退化を検出）。
-for req in scripts/pre-push scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig; do
+for req in scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig templates/.coverage-floor; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"

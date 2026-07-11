@@ -16,8 +16,10 @@
 |---|---|
 | `make test` | 全テスト実行 |
 | `make lint` | 静的解析（**警告ゼロで失敗する設定**にする。下記3参照） |
+| `make coverage` | カバレッジのフロア検証（一方向ラチェット。下記5参照。`scripts/check-coverage.sh` で判定） |
 | `make audit-all` | 整合性監査一式（詳細: `docs/rules/consistency.md`） |
-| `make install-hooks` | git フック（pre-push 等）をローカルに導入 |
+| `make audit-deps` | 依存パッケージの脆弱性監査（詳細: `docs/rules/security.md`） |
+| `make install-hooks` | git フック（pre-push・commit-msg 等）をローカルに導入 |
 
 ## 2. push前ゲート（pre-push フック）
 - push 前に **`make audit-all` ＋ `make test`** を実行し、失敗したら push をブロックする。

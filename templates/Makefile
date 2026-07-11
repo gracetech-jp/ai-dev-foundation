@@ -2,7 +2,7 @@
 # フック・CI・人間が同じ入口を共有するための規約ターゲット。
 # 中身は各サービスのスタックに合わせて実装すること（この雛形は最小構成）。
 
-.PHONY: all test lint audit-all install-hooks
+.PHONY: all test lint coverage audit-all audit-deps install-hooks
 
 all: audit-all test
 
@@ -16,12 +16,25 @@ lint:
 	@echo "[lint] TODO: このサービスの静的解析コマンドを設定してください（例: npm run lint）"
 	@exit 1
 
+# カバレッジのフロア検証（一方向ラチェット。詳細: docs/rules/quality-gates.md §5）。
+# カバレッジを計測し、測定値を scripts/check-coverage.sh に渡してフロア割れを失敗させる。
+coverage:
+	@echo "[coverage] TODO: カバレッジを計測し scripts/check-coverage.sh に測定値を渡してください"
+	@echo "         例: bash scripts/check-coverage.sh <測定カバレッジ%>"
+	@exit 1
+
 # 整合性監査一式（詳細: docs/rules/consistency.md）
 audit-all:
 	@bash scripts/audit-consistency.sh
 
-# git フック（pre-push）をローカルに導入する
+# 依存パッケージの脆弱性監査（詳細: docs/rules/security.md）。
+audit-deps:
+	@echo "[audit-deps] TODO: 依存の脆弱性監査コマンドを設定してください（例: npm audit --audit-level=high / pip-audit）"
+	@exit 1
+
+# git フック（pre-push・commit-msg）をローカルに導入する
 install-hooks:
 	@ln -sf ../../scripts/pre-push "$$(git rev-parse --git-dir)/hooks/pre-push"
-	@chmod +x scripts/pre-push
-	@echo "[install-hooks] ✅ pre-push フックを導入しました"
+	@ln -sf ../../scripts/commit-msg "$$(git rev-parse --git-dir)/hooks/commit-msg"
+	@chmod +x scripts/pre-push scripts/commit-msg
+	@echo "[install-hooks] ✅ pre-push・commit-msg フックを導入しました"

@@ -44,11 +44,15 @@ cp /workspace/templates/docs/service-rules/*.md "${TARGET}/docs/service-rules/"
 # ADR（意思決定記録）の運用の型を配布（テンプレート＋運用ガイド。基盤固有のADR本体は配らない）
 cp /workspace/templates/docs/decisions/*.md "${TARGET}/docs/decisions/"
 
-# 品質ゲート一式（Makefile ターゲット契約・pre-push フック・監査スクリプト雛形・CIワークフロー）を配布
+# 品質ゲート一式（Makefile契約・フック・監査雛形・カバレッジ機構・CIワークフロー）を配布
 cp /workspace/templates/Makefile "${TARGET}/Makefile"
 cp /workspace/templates/scripts/audit-consistency.sh "${TARGET}/scripts/"
 cp /workspace/scripts/pre-push "${TARGET}/scripts/"
-chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push"
+cp /workspace/scripts/commit-msg "${TARGET}/scripts/"           # Conventional Commits 検証(中立)
+cp /workspace/scripts/check-coverage.sh "${TARGET}/scripts/"    # カバレッジ・ラチェット判定(中立)
+cp /workspace/templates/.coverage-floor "${TARGET}/.coverage-floor"  # フロア初期値(サービスがラチェット)
+chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push" \
+         "${TARGET}/scripts/commit-msg" "${TARGET}/scripts/check-coverage.sh"
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp /workspace/templates/.github/workflows/ci.yml "${TARGET}/.github/workflows/ci.yml"
 
