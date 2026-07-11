@@ -8,7 +8,7 @@
 
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 fail=0
 report() {
@@ -56,12 +56,17 @@ if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; th
 	done
 fi
 # 品質ゲート・逆輸入プロセス一式が新サービスへ配布されているか（配布行の削除・退化を検出）。
-for req in scripts/pre-push scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile; do
+for req in scripts/pre-push scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
 	fi
 done
+
+# 基盤リポ自身も CI 多段ゲートを持つ（dogfooding。削除・退化の検出）。
+if [ ! -f "$ROOT/.github/workflows/ci.yml" ]; then
+	report ".github/workflows/ci.yml が無い（基盤リポ自身のCIゲート。docs/rules/quality-gates.md §4）"
+fi
 
 echo "[audit] (4) リネーム残渣スキャン（データ駆動）..."
 # 旧名→新名のリネームを行ったら、この配列に "旧名|新名" を1行追加する。
@@ -75,7 +80,19 @@ for pair in "${renames[@]}"; do
 	hits=$(grep -rn --exclude-dir=.git --exclude-dir=.claude --exclude="audit-consistency.sh" -- "$old" "$ROOT" 2>/dev/null || true)
 	if [ -n "$hits" ]; then
 		report "リネーム残渣: 旧名 '$old'（→ '$new'）が残存:"
+		# shellcheck disable=SC2001  # 各行への固定プレフィックス付与は sed が最も明瞭
 		echo "$hits" | sed 's/^/       /'
+	fi
+done
+
+echo "[audit] (5) Dockerfile の guard 依存(jq)の二重管理チェック..."
+# guard-dangerous.sh は jq に依存する。root と templates の Dockerfile は別実体で手動同期のため、
+# 片方だけ jq 導入が抜ける「サイレント退化」を検出する（全文一致は強制しない＝意図的分岐は許容）。
+for df in .devcontainer/Dockerfile templates/.devcontainer/Dockerfile; do
+	if [ ! -f "$ROOT/$df" ]; then
+		report "$df が存在しない（devcontainer 設定）"
+	elif ! grep -qE '(^|[[:space:]])jq([[:space:]]|$|\\)' "$ROOT/$df"; then
+		report "$df が jq を導入していない（guard-dangerous.sh の依存。片側の退化の疑い）"
 	fi
 done
 

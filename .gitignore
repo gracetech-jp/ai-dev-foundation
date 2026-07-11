@@ -4,6 +4,8 @@
 !.claude/scripts/**
 !.claude/skills/
 !.claude/skills/**
+!.claude/agents/
+!.claude/agents/**
 !templates/.claude/
 .env
 node_modules/

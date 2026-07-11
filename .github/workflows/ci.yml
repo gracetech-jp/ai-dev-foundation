@@ -1,0 +1,33 @@
+name: CI
+
+# 基盤リポジトリ自身の品質ゲート（docs/rules/quality-gates.md §4「CI 多段ゲート」）。
+# ゲートは push 前フックと CI で二重化する（CIが最終防波堤）。
+# 基盤リポはアプリ・言語ランタイムを持たず bash/shellcheck のみで完結するため、
+# devcontainer を使わず素の runner 上で make ターゲットを直接呼ぶ。
+# サービス向けの配布用ワークフローは templates/.github/workflows/ci.yml（devcontainer方式）。
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make audit-all
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test

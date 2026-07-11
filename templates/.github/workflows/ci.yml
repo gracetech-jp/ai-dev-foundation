@@ -1,0 +1,46 @@
+name: CI
+
+# スタック非依存の品質ゲート（docs/rules/quality-gates.md §4「CI 多段ゲート」）。
+# 各ジョブは make ターゲットだけを呼び、言語固有コマンドは一切書かない（中身は Makefile が委譲）。
+# lint / test はサービスの devcontainer（.devcontainer/Dockerfile）内で実行し、
+# 言語ランタイムの導入を Dockerfile へ委譲する＝この YAML は編集不要でどのスタックでも動く。
+# ゲートは push 前フック（make install-hooks）と CI で二重化する（CIが最終防波堤）。
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # 整合性監査。雛形の audit-consistency.sh は純 bash/grep でツールチェーン不要のため
+  # 素の runner で実行する（最速・完全中立）。
+  # 注意: 層(2)構造監査・層(3)スキーマdrift をスタックツールや DB で実装した場合は、
+  #       この audit ジョブを下の lint/test と同じ devcontainer 方式に寄せ、
+  #       drift 検査に DB が要るなら services: ブロックを足すこと。
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make audit-all
+
+  # 静的解析（ゼロ警告ゲート）。Makefile 雛形は未実装だと exit 1 で失敗する＝実装するまで赤。
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make lint
+          push: never
+
+  # 全テスト実行。Makefile 雛形は未実装だと exit 1 で失敗する＝テストを用意するまで赤（fail-closed）。
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make test
+          push: never

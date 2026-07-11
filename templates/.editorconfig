@@ -1,0 +1,19 @@
+# EditorConfig — エディタ非依存でコードスタイルを強制する（docs/rules/code-style.md 準拠）
+# https://editorconfig.org/
+root = true
+
+[*]
+indent_style = tab
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# YAML はタブ不可（スペース必須）
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown は行末スペースが改行の意味を持つため、末尾空白除去を無効化
+[*.md]
+trim_trailing_whitespace = false

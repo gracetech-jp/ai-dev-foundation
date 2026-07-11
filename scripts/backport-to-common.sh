@@ -107,6 +107,7 @@ if git -C "$COMMON" rev-parse --git-dir >/dev/null 2>&1; then
 	dirty="$( (cd "$COMMON" && git status --porcelain -- "${FILES[@]}") 2>/dev/null || true)"
 	if [ -n "$dirty" ] && [ "$FORCE" -ne 1 ]; then
 		echo "❌ 共通リポの対象ファイルに未コミットの変更があります。上書きで失われる恐れがあるため中断します。" >&2
+		# shellcheck disable=SC2001  # 各行への固定プレフィックス付与は sed が最も明瞭
 		echo "$dirty" | sed 's/^/      /' >&2
 		echo "   先に共通リポ側で commit / stash してください（意図的に無視するなら --force）。" >&2
 		exit 1
