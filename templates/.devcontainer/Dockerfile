@@ -2,8 +2,9 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# jq: .claude/scripts/guard-dangerous.sh（PreToolUseフック）がフックJSON入力を解析するために必要
 RUN apt-get update && apt-get install -y \
-    curl git zsh build-essential ca-certificates sudo \
+    curl git zsh build-essential ca-certificates sudo jq \
     && rm -rf /var/lib/apt/lists/*
 
 RUN usermod -l node ubuntu \

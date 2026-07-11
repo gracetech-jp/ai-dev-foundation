@@ -1,4 +1,9 @@
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/skills/
+!.claude/skills/**
 !templates/.claude/
 .env
 node_modules/

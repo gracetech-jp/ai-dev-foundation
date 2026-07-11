@@ -13,7 +13,7 @@ fi
 echo "=== ${SERVICE_NAME} の雛形を作成します ==="
 
 # ディレクトリ作成
-mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules,scripts}
+mkdir -p "${TARGET}"/{.devcontainer,.claude,docs/rules,docs/service-rules,scripts}
 
 # devcontainer設定をコピー
 cp /workspace/templates/.devcontainer/Dockerfile "${TARGET}/.devcontainer/"
@@ -23,16 +23,21 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 
 # Claude設定をコピー
 cp /workspace/templates/.claude/settings.json "${TARGET}/.claude/settings.json"
-# Claude skills・SessionStartルール注入スクリプトを配布
+# Claude skills・SessionStartルール注入スクリプト・危険操作ガードフックを配布
 mkdir -p "${TARGET}/.claude/scripts" "${TARGET}/.claude/skills"
 cp /workspace/templates/.claude/scripts/session-start-rules.sh "${TARGET}/.claude/scripts/"
+cp /workspace/templates/.claude/scripts/guard-dangerous.sh "${TARGET}/.claude/scripts/"
 cp -a /workspace/templates/.claude/skills/. "${TARGET}/.claude/skills/"
-chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh"
+chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/scripts/guard-dangerous.sh"
 
 # 共通ルールをそのままコピー
 # docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）
 cp /workspace/CLAUDE.md "${TARGET}/CLAUDE.md"
 cp /workspace/docs/rules/*.md "${TARGET}/docs/rules/"
+
+# サービス固有ルールの雛形を配布（CLAUDE.md が docs/service-rules/consistency.md を参照するため、
+# 雛形が無いと全サービスでリンク切れになる。中身はサービスが自スタックで肉付けする＝逆輸入対象外）
+cp /workspace/templates/docs/service-rules/*.md "${TARGET}/docs/service-rules/"
 
 # 品質ゲート一式（Makefile ターゲット契約・pre-push フック・監査スクリプト雛形）を配布
 cp /workspace/templates/Makefile "${TARGET}/Makefile"
@@ -50,14 +55,24 @@ cp /workspace/templates/SERVICE.md.template "${TARGET}/SERVICE.md"
 sed -i "s/\[サービス名\]/${SERVICE_NAME}/g" "${TARGET}/SERVICE.md"
 
 # .gitignore
+# .claude/ 配下は認証情報・セッションログ等を含むため丸ごとは追跡しないが、
+# settings.json・scripts/・skills/ はチーム共有すべき安全な設定なので選択的に追跡対象へ戻す
+# （このリポジトリ自身の .gitignore と同じ手法。理由: .claude/ を丸ごとgit管理外にすると
+#   guard-dangerous.sh 等の安全設定が新規clone・2人目以降のメンバーに配布されないため）
 cat > "${TARGET}/.gitignore" << 'GITIGNORE'
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/skills/
+!.claude/skills/**
 .env
 node_modules/
 dist/
 .DS_Store
 *.log
 CLAUDE.local.md
+.backport-backup-*/
 GITIGNORE
 
 # .env.example

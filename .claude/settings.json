@@ -1,19 +1,16 @@
 {
+  "theme": "dark",
   "permissions": {
     "allow": [
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git status:*)",
       "Bash(git add:*)",
-      "Bash(npm test:*)",
-      "Bash(npm run lint:*)"
+      "Bash(make test:*)",
+      "Bash(make lint:*)",
+      "Bash(make audit-all:*)"
     ],
     "ask": [
-      "Bash(*migrate*)",
-      "Bash(npm install:*)",
-      "Bash(npm uninstall:*)",
-      "Bash(pip install:*)",
-      "Bash(pip uninstall:*)",
       "Bash(gh workflow run:*)"
     ],
     "deny": [
