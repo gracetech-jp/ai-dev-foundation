@@ -11,8 +11,9 @@
     "vscode": {
       "extensions": [
         "anthropic.claude-code",
-        "esbenp.prettier-vscode",
         "eamodio.gitlens"
+        // このサービスのスタックに合ったフォーマッタ拡張を追加する
+        // 例: JS/TS→"esbenp.prettier-vscode" / Python→"ms-python.black-formatter" / Go→"golang.go"
       ],
       "settings": {
         "files.eol": "\n",

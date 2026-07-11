@@ -1,0 +1,13 @@
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/skills/
+!.claude/skills/**
+.env
+.DS_Store
+*.log
+CLAUDE.local.md
+.backport-backup-*/
+# 各スタックの依存ディレクトリ・ビルド成果物はここに追記
+# 例: node_modules/  dist/  __pycache__/  target/  vendor/  bin/

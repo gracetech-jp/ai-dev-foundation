@@ -33,6 +33,8 @@ chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/s
 # 共通ルールをそのままコピー
 # docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）
 cp /workspace/CLAUDE.md "${TARGET}/CLAUDE.md"
+# COMMAND.md（Claude Code コマンドリファレンス）はスタック非依存の共通正本。root からコピーし還流対象に含める
+cp /workspace/COMMAND.md "${TARGET}/COMMAND.md"
 cp /workspace/docs/rules/*.md "${TARGET}/docs/rules/"
 
 # サービス固有ルールの雛形を配布（CLAUDE.md が docs/service-rules/consistency.md を参照するため、
@@ -54,51 +56,15 @@ chmod +x "${TARGET}/scripts/backport-to-common.sh"
 cp /workspace/templates/SERVICE.md.template "${TARGET}/SERVICE.md"
 sed -i "s/\[サービス名\]/${SERVICE_NAME}/g" "${TARGET}/SERVICE.md"
 
-# .gitignore
-# .claude/ 配下は認証情報・セッションログ等を含むため丸ごとは追跡しないが、
-# settings.json・scripts/・skills/ はチーム共有すべき安全な設定なので選択的に追跡対象へ戻す
-# （このリポジトリ自身の .gitignore と同じ手法。理由: .claude/ を丸ごとgit管理外にすると
-#   guard-dangerous.sh 等の安全設定が新規clone・2人目以降のメンバーに配布されないため）
-cat > "${TARGET}/.gitignore" << 'GITIGNORE'
-.claude/*
-!.claude/settings.json
-!.claude/scripts/
-!.claude/scripts/**
-!.claude/skills/
-!.claude/skills/**
-.env
-node_modules/
-dist/
-.DS_Store
-*.log
-CLAUDE.local.md
-.backport-backup-*/
-GITIGNORE
-
-# .env.example
-cat > "${TARGET}/.env.example" << 'ENVEXAMPLE'
-ANTHROPIC_API_KEY=
-DATABASE_URL=
-ENVEXAMPLE
-
-# README
-cat > "${TARGET}/README.md" << README
-# ${SERVICE_NAME}
-
-## セットアップ
-\`\`\`bash
-git clone <repo-url> ~/projects/${SERVICE_NAME}
-cd ~/projects/${SERVICE_NAME}
-code .
-# 「Reopen in Container」をクリック
-cp .env.example .env
-claude
-\`\`\`
-
-## 共通ルール更新時
-ai-dev-foundation の CLAUDE.md・docs/rules/ が更新された場合は、
-このリポジトリの該当ファイルも手動で同期してください。
-README
+# .gitignore / .env.example / README をテンプレートから配布
+# （.claude/ 配下は認証情報・セッションログ等を含むため丸ごとは追跡しないが、
+#   settings.json・scripts/・skills/ はチーム共有すべき安全な設定なので gitignore テンプレ側で
+#   選択的に追跡対象へ戻している。理由: .claude/ を丸ごとgit管理外にすると guard-dangerous.sh 等の
+#   安全設定が新規clone・2人目以降のメンバーに配布されないため）
+cp /workspace/templates/gitignore.template "${TARGET}/.gitignore"
+cp /workspace/templates/.env.example "${TARGET}/.env.example"
+sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
+  /workspace/templates/README.md.template > "${TARGET}/README.md"
 
 echo "✅ ~/projects/${SERVICE_NAME} を作成しました"
 echo ""

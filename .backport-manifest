@@ -6,6 +6,7 @@
 #      あるサービスのローカル改変を全サービスへ伝播させないため（共通側マニフェストは共通リポで編集）。
 
 CLAUDE.md
+COMMAND.md
 docs/rules/
 scripts/pre-push
 scripts/backport-to-common.sh

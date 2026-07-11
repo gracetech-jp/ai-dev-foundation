@@ -5,15 +5,23 @@
       "Bash(git log:*)",
       "Bash(git status:*)",
       "Bash(git add:*)",
-      "Bash(npm test:*)",
-      "Bash(npm run lint:*)"
+      "Bash(make test:*)",
+      "Bash(make lint:*)",
+      "Bash(make audit-all:*)"
     ],
     "ask": [
       "Bash(*migrate*)",
       "Bash(npm install:*)",
-      "Bash(npm uninstall:*)",
+      "Bash(npm ci:*)",
+      "Bash(pnpm add:*)",
+      "Bash(yarn add:*)",
       "Bash(pip install:*)",
-      "Bash(pip uninstall:*)",
+      "Bash(poetry add:*)",
+      "Bash(go get:*)",
+      "Bash(cargo add:*)",
+      "Bash(gem install:*)",
+      "Bash(bundle add:*)",
+      "Bash(composer require:*)",
       "Bash(gh workflow run:*)"
     ],
     "deny": [
