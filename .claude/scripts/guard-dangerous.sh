@@ -57,4 +57,10 @@ if echo "$SANITIZED" | grep -qiE '\b(cat|less|more|head|tail|tac|strings|xxd|hex
 	deny ".envなど秘密情報ファイルのbash経由読み取りを検知したためブロックしました"
 fi
 
+# 8) 鍵・認証情報ファイルのbash経由読み取り（秘密鍵/SSH/AWS/GCP認証/トークン。id_*.pub 公開鍵は対象外）
+SECRETSCAN="$(echo "$COMMAND" | sed -E 's/id_(rsa|ed25519|ecdsa|dsa)\.pub\b//gi')"
+if echo "$SECRETSCAN" | grep -qiE '\b(cat|less|more|head|tail|tac|strings|xxd|hexdump|od|vim|vi|nano|emacs|cp|scp|base64|awk|sed|grep|diff)\b[^|;&]*([^[:space:]]*\.(pem|key|p12|pfx)\b|[^[:space:]]*id_(rsa|ed25519|ecdsa|dsa)\b|[^[:space:]]*\.npmrc\b|[^[:space:]]*/\.ssh/|[^[:space:]]*/\.aws/credentials\b|[^[:space:]]*/\.config/gcloud/)'; then
+	deny "鍵・認証情報ファイルのbash経由読み取りを検知したためブロックしました"
+fi
+
 exit 0

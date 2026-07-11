@@ -23,3 +23,12 @@
 - 依存パッケージの脆弱性チェックを定期的に実施する（使用するツールは `SERVICE.md` に定義）
 - 重大な脆弱性は即時対応する
 - 不要なパッケージは削除する
+
+## AIエージェントのガードレール
+- 破壊的操作・秘密ファイル読み取りは、プロンプト任せにせず `.claude/settings.json` の `permissions.deny` と
+  PreToolUse フック `.claude/scripts/guard-dangerous.sh` で機械的に遮断する（プロジェクト単位で配布済み）。
+- **組織全体で強制したい制御は managed-settings（管理者スコープ）で設定する**。プロジェクトの `settings.json` には
+  置けない管理者専用キー（`disableBypassPermissionsMode`＝`--dangerously-skip-permissions` の抑止、
+  `allowManagedPermissionRulesOnly` / `allowManagedHooksOnly` / `allowManagedMcpServersOnly`）は、
+  IT管理者が managed-settings に定義する。プロジェクト設定に書いても無効、または自リポのフック/権限を壊すため注意。
+  （出典: Claude Code 公式 settings ドキュメント）
