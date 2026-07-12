@@ -1,5 +1,4 @@
 {
-  "theme": "dark",
   "permissions": {
     "allow": [
       "Bash(git diff:*)",
@@ -9,9 +8,6 @@
       "Bash(make test:*)",
       "Bash(make lint:*)",
       "Bash(make audit-all:*)"
-    ],
-    "ask": [
-      "Bash(gh workflow run:*)"
     ],
     "deny": [
       "Bash(git push:*)",
@@ -38,8 +34,24 @@
       "Read(**/.ssh/**)",
       "Read(**/.aws/**)",
       "Read(**/.config/gcloud/**)"
+    ],
+    "ask": [
+      "Bash(*migrate*)",
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)",
+      "Bash(pnpm add:*)",
+      "Bash(yarn add:*)",
+      "Bash(pip install:*)",
+      "Bash(poetry add:*)",
+      "Bash(go get:*)",
+      "Bash(cargo add:*)",
+      "Bash(gem install:*)",
+      "Bash(bundle add:*)",
+      "Bash(composer require:*)",
+      "Bash(gh workflow run:*)"
     ]
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -64,6 +76,29 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -H 'Priority: high' -H 'Title: Claude Code' -d '承認待ちです' https://ntfy.sh/foundation-shohei-8f2k9x > /dev/null",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -H 'Title: Claude Code' -d 'タスク完了しました' https://ntfy.sh/foundation-shohei-8f2k9x > /dev/null",
+            "timeout": 10
+          }
+        ]
+      }
     ]
-  }
+  },
+  "theme": "dark"
 }
