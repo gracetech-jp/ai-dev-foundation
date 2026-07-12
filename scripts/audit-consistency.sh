@@ -30,6 +30,16 @@ for ref in $refs; do
 	fi
 done
 
+# docs/service-rules/ への参照。CLAUDE.md は共通配布されるため参照先の実体は各サービス側にあり、
+# 基盤リポでは配布元 templates/docs/service-rules/ に存在すれば全サービスで解決する。
+# どちらにも無ければ全サービスでリンク切れになるため fail とする。
+refs_sr=$(grep -rhoE 'docs/service-rules/[a-z0-9-]+\.md' CLAUDE.md docs/ 2>/dev/null | sort -u)
+for ref in $refs_sr; do
+	if [ ! -f "$ROOT/$ref" ] && [ ! -f "$ROOT/templates/$ref" ]; then
+		report "参照先が存在しない: $ref（root にも templates/ にも無し。全サービスでリンク切れになる）"
+	fi
+done
+
 echo "[audit] (2) make ターゲット契約の検査..."
 # quality-gates.md が要求する必須ターゲットが Makefile に定義されているか。
 if [ ! -f "$ROOT/Makefile" ]; then
@@ -55,8 +65,20 @@ if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; th
 		fi
 	done
 fi
-# 品質ゲート・逆輸入プロセス一式が新サービスへ配布されているか（配布行の削除・退化を検出）。
-for req in scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh scripts/backport-to-common.sh .backport-manifest templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig templates/.coverage-floor; do
+# 品質ゲート・逆輸入プロセス・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
+# （配布行の削除・退化を検出）。特に guard-dangerous.sh / settings.json / session-start-rules.sh は
+# 安全機構の配布そのものであり、退化すると新サービスがガード無しで生まれるため必ず含める。
+# ディレクトリ単位で配布されるもの（skills/agents/service-rules/decisions）は basename がディレクトリ名。
+for req in \
+	scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
+	scripts/backport-to-common.sh scripts/sync-from-common.sh .backport-manifest COMMAND.md \
+	templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig templates/.coverage-floor \
+	templates/.claude/settings.json templates/.claude/scripts/guard-dangerous.sh \
+	templates/.claude/scripts/session-start-rules.sh templates/.claude/skills templates/.claude/agents \
+	templates/.devcontainer/Dockerfile templates/.devcontainer/postCreate.sh templates/.devcontainer/devcontainer.json \
+	templates/gitignore.template templates/.env.example \
+	templates/SERVICE.md.template templates/README.md.template \
+	templates/docs/service-rules templates/docs/decisions; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
@@ -74,7 +96,8 @@ echo "[audit] (4) リネーム残渣スキャン（データ駆動）..."
 renames=(
 	# 例: "oldFieldName|newFieldName"
 )
-for pair in "${renames[@]}"; do
+# `[@]+...` は空配列+set -u で bash 4.3 以前が unbound エラーになるのを防ぐイディオム
+for pair in ${renames[@]+"${renames[@]}"}; do
 	old="${pair%%|*}"
 	new="${pair##*|}"
 	hits=$(grep -rn --exclude-dir=.git --exclude-dir=.claude --exclude="audit-consistency.sh" -- "$old" "$ROOT" 2>/dev/null || true)

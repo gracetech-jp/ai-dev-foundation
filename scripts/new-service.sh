@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e
-SERVICE_NAME=$1
+SERVICE_NAME=${1:-}
 if [ -z "$SERVICE_NAME" ]; then
   echo "使い方: ./scripts/new-service.sh <サービス名>"
+  exit 1
+fi
+# サービス名を検証する（英数字始まり・英数字と ._- のみ）。
+# パストラバーサル（../x や / 入り）と sed 置換文字列の破壊（/ & \ 入り）を機械的に防ぐため。
+if ! printf '%s' "$SERVICE_NAME" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9._-]*$'; then
+  echo "エラー: サービス名は英数字で始まり、英数字と . _ - のみ使用できます: '${SERVICE_NAME}'"
   exit 1
 fi
 TARGET="$HOME/projects/${SERVICE_NAME}"

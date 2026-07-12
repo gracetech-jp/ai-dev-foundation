@@ -4,7 +4,7 @@
 
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 fail=0
 report() { echo "  ❌ $1"; fail=1; }
@@ -23,11 +23,13 @@ echo "[audit] (4) リネーム残渣スキャン（データ駆動）..."
 renames=(
 	# 例: "oldFieldName|newFieldName"
 )
-for pair in "${renames[@]}"; do
+# `[@]+...` は空配列+set -u で bash 4.3 以前が unbound エラーになるのを防ぐイディオム
+for pair in ${renames[@]+"${renames[@]}"}; do
 	old="${pair%%|*}"; new="${pair##*|}"
 	hits=$(grep -rn --exclude-dir=.git --exclude-dir=node_modules --exclude="audit-consistency.sh" -- "$old" "$ROOT" 2>/dev/null || true)
 	if [ -n "$hits" ]; then
 		report "リネーム残渣: 旧名 '$old'（→ '$new'）が残存:"
+		# shellcheck disable=SC2001  # 各行への固定プレフィックス付与は sed が最も明瞭
 		echo "$hits" | sed 's/^/       /'
 	fi
 done

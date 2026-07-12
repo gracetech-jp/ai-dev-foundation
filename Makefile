@@ -12,18 +12,16 @@ all: audit-all test
 # サービスリポジトリ側は各スタックのテストランナーで上書きする。
 test:
 	@echo "[test] このリポジトリにアプリ単体テストはありません。スクリプトの構文を検査します。"
-	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg; do bash -n "$$f" || exit 1; done
+	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh templates/.claude/scripts/*.sh templates/scripts/*.sh templates/.devcontainer/postCreate.sh; do bash -n "$$f" || exit 1; done
 	@echo "[test] ✅ 構文チェック通過"
 
-# 静的解析。shellcheck があればスクリプトを検査し、無ければスキップ（ゼロ警告ゲート）。
+# 静的解析（ゼロ警告ゲート）。shellcheck 不在は fail-closed（黙ってスキップするとゲートが形骸化するため）。
+# devcontainer には Dockerfile で導入済み。CI の ubuntu ランナーにもプリインストールされている。
 lint:
-	@if command -v shellcheck >/dev/null 2>&1; then \
-		echo "[lint] shellcheck を実行中..."; \
-		shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg || exit 1; \
-		echo "[lint] ✅ 警告なし"; \
-	else \
-		echo "[lint] shellcheck 未導入のためスキップ（導入推奨: apt-get install shellcheck）"; \
-	fi
+	@command -v shellcheck >/dev/null 2>&1 || { echo "[lint] ❌ shellcheck が見つかりません（fail-closed。導入: apt-get install shellcheck）"; exit 1; }
+	@echo "[lint] shellcheck を実行中..."
+	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh templates/.claude/scripts/*.sh templates/scripts/*.sh templates/.devcontainer/postCreate.sh || exit 1
+	@echo "[lint] ✅ 警告なし"
 
 # カバレッジのフロア検証（ラチェット）。基盤リポはアプリコードが無いためスキップ。
 # サービス側はカバレッジを計測し scripts/check-coverage.sh に測定値を渡して失敗判定する。

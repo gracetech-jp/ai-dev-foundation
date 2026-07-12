@@ -16,10 +16,7 @@ for f in "$WORKSPACE/docs/rules/"*.md; do
 	content+="$(cat "$f")"$'\n\n'
 done
 
-# bash で JSON エスケープ: \, " を先にエスケープし、改行を \n に変換
-escaped=$(printf '%s' "$content" \
-	| sed 's/\\/\\\\/g' \
-	| sed 's/"/\\"/g' \
-	| sed ':a;N;$!ba;s/\n/\\n/g')
-
-printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$escaped"
+# JSON 生成は jq に委ねる（手組み sed エスケープはタブ・CR・制御文字を取りこぼし不正な JSON になるため）。
+# jq は guard-dangerous.sh と共通の devcontainer 依存（Dockerfile で導入済み）。
+jq -n --arg ctx "$content" \
+	'{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'

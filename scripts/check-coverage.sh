@@ -17,6 +17,18 @@ fi
 floor="$(cat "$FLOOR_FILE" 2>/dev/null || echo 0)"
 : "${floor:=0}"
 
+# 数値バリデーション（fail-closed）。awk の `+0` は非数値を黙って 0 に丸めるため、
+# 測定値・フロアが壊れているとゲートが無効化されたまま緑になる。それを防ぐ。
+is_number() { printf '%s' "$1" | grep -qE '^[0-9]+(\.[0-9]+)?$'; }
+if ! is_number "$measured"; then
+	echo "❌ 測定カバレッジが数値ではありません: '$measured'" >&2
+	exit 2
+fi
+if ! is_number "$floor"; then
+	echo "❌ .coverage-floor の値が数値ではありません: '$floor'（ファイル破損の疑い）" >&2
+	exit 2
+fi
+
 # 小数にも対応するため awk で数値比較する
 if awk -v m="$measured" -v f="$floor" 'BEGIN { exit !((m + 0) < (f + 0)) }'; then
 	{

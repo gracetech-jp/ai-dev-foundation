@@ -59,8 +59,9 @@ COMMON="$(cd "$COMMON" && pwd)"
 resolve_files() {
 	local entry
 	while IFS= read -r entry || [ -n "$entry" ]; do
-		entry="${entry%%#*}"                       # 行内コメント除去
-		entry="$(echo "$entry" | xargs 2>/dev/null || true)"  # 前後空白除去
+		entry="${entry%%#*}"                             # 行内コメント除去
+		entry="${entry#"${entry%%[![:space:]]*}"}"       # 先頭空白除去（xargs は引用符を解釈しパスを壊すため純bashで）
+		entry="${entry%"${entry##*[![:space:]]}"}"       # 末尾空白除去
 		[ -z "$entry" ] && continue
 		if [ -d "$ROOT/$entry" ]; then             # ディレクトリ → 再帰
 			(cd "$ROOT" && find "$entry" -type f)
