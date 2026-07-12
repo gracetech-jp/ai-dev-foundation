@@ -21,3 +21,4 @@ dist/
 *.log
 CLAUDE.local.md
 .backport-backup-*/
+.sync-backup-*/

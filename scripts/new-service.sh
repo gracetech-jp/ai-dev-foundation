@@ -56,10 +56,11 @@ chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push" \
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp /workspace/templates/.github/workflows/ci.yml "${TARGET}/.github/workflows/ci.yml"
 
-# 逆輸入プロセス一式を新規サービスへ配布
+# 逆輸入（サービス→共通）・順輸入（共通→サービス）プロセス一式を新規サービスへ配布
 cp /workspace/scripts/backport-to-common.sh "${TARGET}/scripts/"
+cp /workspace/scripts/sync-from-common.sh "${TARGET}/scripts/"
 cp /workspace/.backport-manifest "${TARGET}/.backport-manifest"
-chmod +x "${TARGET}/scripts/backport-to-common.sh"
+chmod +x "${TARGET}/scripts/backport-to-common.sh" "${TARGET}/scripts/sync-from-common.sh"
 
 # SERVICE.mdをテンプレートからコピー
 cp /workspace/templates/SERVICE.md.template "${TARGET}/SERVICE.md"

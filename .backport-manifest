@@ -14,3 +14,4 @@ scripts/pre-push
 scripts/commit-msg
 scripts/check-coverage.sh
 scripts/backport-to-common.sh
+scripts/sync-from-common.sh

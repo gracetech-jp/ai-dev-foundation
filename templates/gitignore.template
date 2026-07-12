@@ -18,5 +18,6 @@ id_ed25519
 *.log
 CLAUDE.local.md
 .backport-backup-*/
+.sync-backup-*/
 # 各スタックの依存ディレクトリ・ビルド成果物はここに追記
 # 例: node_modules/  dist/  __pycache__/  target/  vendor/  bin/
