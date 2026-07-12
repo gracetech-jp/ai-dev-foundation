@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -H 'Priority: high' -H 'Title: Claude Code' -d '承認待ちです' https://ntfy.sh/foundation-shohei-8f2k9x > /dev/null",
+            "command": "if [ -n \"$NTFY_TOPIC\" ]; then curl -s -H 'Priority: high' -H 'Title: Claude Code' -d '承認待ちです' \"https://ntfy.sh/$NTFY_TOPIC\" > /dev/null; fi",
             "timeout": 10
           }
         ]
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -H 'Title: Claude Code' -d 'タスク完了しました' https://ntfy.sh/foundation-shohei-8f2k9x > /dev/null",
+            "command": "if [ -n \"$NTFY_TOPIC\" ]; then curl -s -H 'Title: Claude Code' -d 'タスク完了しました' \"https://ntfy.sh/$NTFY_TOPIC\" > /dev/null; fi",
             "timeout": 10
           }
         ]
