@@ -30,7 +30,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # make test は tests/*.bats を bats で実行する（bare runner のため apt で導入）。
+      - run: sudo apt-get update && sudo apt-get install -y bats
       - run: make test
+
+  # 要件↔テストのトレーサビリティ（未カバー要件・妥当性欠落・批准後改変を検出）。
+  # 純 bash/grep/awk/sha256sum で完結するため素の runner で実行する。
+  req-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make req-coverage
 
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする。
   secret-scan:

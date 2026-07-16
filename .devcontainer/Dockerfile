@@ -4,8 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # jq: .claude/scripts/guard-dangerous.sh（PreToolUseフック）がフックJSON入力を解析するために必要
 # shellcheck: make lint のゼロ警告ゲートに必要（不在だと lint が fail-closed で失敗する）
+# bats: make test のシェルテスト（tests/*.bats）に必要（不在だと test が fail-closed で失敗する）
 RUN apt-get update && apt-get install -y \
-    curl git zsh build-essential ca-certificates sudo jq shellcheck \
+    curl git zsh build-essential ca-certificates sudo jq shellcheck bats \
     && rm -rf /var/lib/apt/lists/*
 
 RUN usermod -l node ubuntu \

@@ -2,9 +2,9 @@
 # フック・CI・人間が同じ入口を共有するための規約ターゲット。
 # 中身は各サービスのスタックに合わせて実装すること（この雛形は最小構成）。
 
-.PHONY: all test lint coverage audit-all audit-deps install-hooks
+.PHONY: all test lint coverage req-coverage audit-all audit-deps install-hooks
 
-all: audit-all test
+all: audit-all test req-coverage
 
 # 全テスト実行。各スタックのテストランナーに置き換える（例: npm test / pytest）。
 test:
@@ -21,6 +21,16 @@ lint:
 coverage:
 	@echo "[coverage] TODO: カバレッジを計測し scripts/check-coverage.sh に測定値を渡してください"
 	@echo "         例: bash scripts/check-coverage.sh <測定カバレッジ%>"
+	@exit 1
+
+# 要件↔テストのカバレッジ・妥当性・改変検知（詳細: docs/rules/requirements.md / testing.md）。
+# マーカー走査設定はスタック依存。このサービスの構成に合わせて env を設定して実行する。
+# 未設定のまま実行すると check-requirements-coverage.sh が exit 2（fail-closed）で失敗する。
+req-coverage:
+	@echo "[req-coverage] TODO: このサービスのマーカー走査設定を行ってください（docs/rules/testing.md / requirements.md）。"
+	@echo "         設定して実行: REQ_TEST_PATHS=<テストパス> REQ_MARKER_RE=<reqマーカー正規表現> \\"
+	@echo "                       [ADV_MARKER_RE=<advマーカー正規表現>] [REQ_COMMENT_PREFIX=<行頭コメント記法>] \\"
+	@echo "                       bash scripts/check-requirements-coverage.sh"
 	@exit 1
 
 # 整合性監査一式（詳細: docs/rules/consistency.md）

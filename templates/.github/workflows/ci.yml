@@ -65,6 +65,17 @@ jobs:
           runCmd: make audit-deps
           push: never
 
+  # 要件↔テストのトレーサビリティ（未カバー要件・妥当性欠落・批准後改変を検出。詳細: docs/rules/requirements.md）。
+  # スクリプトは純 bash だが、マーカー走査設定は Makefile の req-coverage ターゲットが与える。
+  req-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make req-coverage
+          push: never
+
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする（スタック非依存）。
   secret-scan:
     runs-on: ubuntu-latest
