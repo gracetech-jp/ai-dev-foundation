@@ -1,0 +1,12 @@
+# CODEOWNERS — 人間レビュー必須のパス（要件のLLM編集封鎖の主防壁）
+#
+# 要件資産と、Tier/要件の枠組みルール・ゲートの緩和口は、人間批准を経た PR でのみ変更する。
+# GitHub のブランチ保護／Ruleset で「CODEOWNERS レビュー必須」を有効化して初めて強制力を持つ
+# （ファイル単体では強制されない。設定手順: docs/rules/git.md「要件パスのブランチ保護」）。
+#
+# ▼所有者はプレースホルダ。このサービスの GitHub ハンドル/チームに置き換えること。
+docs/requirements/          @OWNER-PLACEHOLDER
+docs/rules/tiers.md         @OWNER-PLACEHOLDER
+docs/rules/requirements.md  @OWNER-PLACEHOLDER
+.req-coverage-baseline      @OWNER-PLACEHOLDER
+.tier-tripwire-allow        @OWNER-PLACEHOLDER

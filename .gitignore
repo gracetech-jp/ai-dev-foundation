@@ -22,3 +22,5 @@ dist/
 CLAUDE.local.md
 .backport-backup-*/
 .sync-backup-*/
+# 要件抽出スキルの下書き置き場（保護外スクラッチ。人間が git mv で docs/requirements/ へ昇格する）
+.req-drafts/

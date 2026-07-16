@@ -101,4 +101,23 @@ if printf '%s' "$SECRETSCAN" | grep -qiE "$READERS" &&
 	deny "鍵・認証情報ファイルのbash経由読み取りを検知したためブロックしました"
 fi
 
+# ---- 要件ディレクトリ(docs/requirements/)への bash 経由書き込み遮断（G3・補助的多層防御） ----
+# 【位置づけ・過信禁止】要件のLLM編集封鎖の *主防壁* は CODEOWNERS＋サーバ側ブランチ保護（レビュー必須化）。
+#   settings.json の Write/Edit(docs/requirements/**) deny は Claude のツール経由の書き込みを塞ぐ。
+#   本ブロックはそれらをすり抜ける *bash 経由* の書き込み（リダイレクト・tee・sed -i・cp/mv 先）を
+#   決定論的に塞ぐ補助線にすぎない。denylist は本質的に穴が残る（例: interpreter の open("w")）ため、
+#   主防壁の CODEOWNERS＋ブランチ保護を必ず併用すること（詳細: docs/rules/git.md）。
+REQ_WRITE_PATH='docs/requirements/'
+if printf '%s' "$STRIPPED" | grep -qF "$REQ_WRITE_PATH"; then
+	# a) リダイレクト（> / >>）先が docs/requirements/
+	if printf '%s' "$STRIPPED" | grep -qE '>>?[[:space:]]*[^|;&<>]*docs/requirements/'; then
+		deny "要件ディレクトリ(docs/requirements/)へのリダイレクト書き込みを検知したためブロックしました（要件は人間批准のみ。G3）"
+	fi
+	# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が docs/requirements/ と共起（過剰側=fail-safe）
+	if printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
+	   printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
+		deny "要件ディレクトリ(docs/requirements/)への bash 経由の書き込み/変更を検知したためブロックしました（要件は人間批准のみ。G3）"
+	fi
+fi
+
 exit 0

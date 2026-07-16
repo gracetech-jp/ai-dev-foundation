@@ -19,5 +19,7 @@ id_ed25519
 CLAUDE.local.md
 .backport-backup-*/
 .sync-backup-*/
+# 要件抽出スキルの下書き置き場（保護外スクラッチ。人間が git mv で docs/requirements/ へ昇格する）
+.req-drafts/
 # 各スタックの依存ディレクトリ・ビルド成果物はここに追記
 # 例: node_modules/  dist/  __pycache__/  target/  vendor/  bin/
