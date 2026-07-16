@@ -67,3 +67,27 @@ make audit-all   # 整合性監査一式
   独自のもの（例：`Bash(<pkg-manager> <install-subcommand>:*)`）があれば追記してください。
 - **整合性監査の具体化**：`docs/service-rules/consistency.md` と `scripts/audit-consistency.sh` に
   このサービスの層構成・drift検出コマンド・リネーム台帳を埋めてください。
+
+---
+
+## 🛡 Tierトリップワイヤ設定（このサービスの「機微」の定義）
+
+照合エンジンは共通リポの `scripts/check-tier-tripwire.sh` が提供する。
+「何を機微とみなすか」は各サービスがここで定義する（共通リポは固有値を持たない）。
+実際の値は `Makefile` の `tier-tripwire` ターゲットで export する（下記の 2 変数）。
+
+- `TIER_TRIPWIRE_PATHS`  … 機微コードのパス glob を `|` 区切りで列挙する。
+- `TIER_TRIPWIRE_SYMBOLS`… パス名に現れない機微識別子の拡張正規表現（`|` で alternation）。
+- 機微面が無いサービスは、両方を空にしたうえで `docs/requirements/.tier-tripwire-none` を
+  人間 commit で ratify し「機微面なし」を明示宣言する。
+  **未定義のまま（`Makefile` の該当行を消す）は緑にならず `exit 2`（fail-closed）**。
+
+```
+# ▼記入例（★削除前提のサンプル。実サービスの値に置換するか、この行ごと削除する）
+#   TIER_TRIPWIRE_PATHS="<機微モジュールのglob>|<別の機微パスのglob>"
+#   TIER_TRIPWIRE_SYMBOLS="<機微APIのシンボル正規表現>|<機微クエリ条件の正規表現>"
+```
+
+> 判定：機微パス/シンボルに触れる変更は、統べる ratified **Tier-S 要件**（`docs/requirements/`）が
+> 必要。無ければ、または統べる要件が tier<S なら赤（申告デスカレーションの裏取り）。
+> 正当な例外は `.tier-tripwire-allow`（人間署名・CODEOWNERS 保護）に登録して警告へ緩和する。

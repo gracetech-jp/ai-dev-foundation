@@ -4,9 +4,9 @@
 # bats で自己検証する。test は「スクリプト構文チェック + bats シェルテスト」を担い、
 # audit-all（ドキュメント/テンプレートの整合性監査）と二本立てで品質を担保する。
 
-.PHONY: all test lint coverage req-coverage audit-all audit-deps install-hooks
+.PHONY: all test lint coverage req-coverage tier-tripwire audit-all audit-deps install-hooks
 
-all: audit-all test req-coverage
+all: audit-all test req-coverage tier-tripwire
 
 # 全テスト実行。まず配布シェル資産の構文を検査し、続いて bats でガードレール等の挙動を検証する。
 # bats 不在は fail-closed（黙ってスキップするとシェル資産のゲートが形骸化するため。lint と同方針）。
@@ -42,6 +42,13 @@ req-coverage:
 	 ADV_MARKER_RE='@adversarial:?[[:space:]]*R-[0-9]+' \
 	 REQ_COMMENT_PREFIX='#' \
 	 bash scripts/check-requirements-coverage.sh
+
+# Tierトリップワイヤ（Tier デスカレーションをコード実態から裏取り。詳細: docs/rules/tiers.md）。
+# 基盤 ai-dev-foundation は機微プロダクトコードを持たないため「機微面なし」を宣言する運用:
+# 空設定＋ docs/requirements/.tier-tripwire-none（人間 commit で ratify）で正当スキップになる。
+tier-tripwire:
+	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \
+	 bash scripts/check-tier-tripwire.sh
 
 # 整合性監査一式（詳細: docs/rules/consistency.md）
 audit-all:

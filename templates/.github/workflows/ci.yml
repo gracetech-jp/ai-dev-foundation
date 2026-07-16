@@ -76,6 +76,19 @@ jobs:
           runCmd: make req-coverage
           push: never
 
+  # Tier デスカレーションの裏取り（機微パス/シンボルへの変更に Tier-S 要件を要求。詳細: docs/rules/tiers.md）。
+  # 差分基準のため全履歴を取得する（fetch-depth: 0）。機微パターンは Makefile の tier-tripwire が与える。
+  tier-tripwire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: devcontainers/ci@v0.3
+        with:
+          runCmd: make tier-tripwire
+          push: never
+
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする（スタック非依存）。
   secret-scan:
     runs-on: ubuntu-latest

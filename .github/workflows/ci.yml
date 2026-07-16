@@ -42,6 +42,16 @@ jobs:
       - uses: actions/checkout@v4
       - run: make req-coverage
 
+  # Tier デスカレーションの裏取り（機微パス/シンボルへの変更に Tier-S 要件を要求）。
+  # 差分基準のため全履歴を取得する（fetch-depth: 0）。基盤は機微面なし宣言で正当スキップ。
+  tier-tripwire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: make tier-tripwire
+
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする。
   secret-scan:
     runs-on: ubuntu-latest

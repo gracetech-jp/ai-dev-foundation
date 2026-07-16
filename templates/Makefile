@@ -2,9 +2,9 @@
 # フック・CI・人間が同じ入口を共有するための規約ターゲット。
 # 中身は各サービスのスタックに合わせて実装すること（この雛形は最小構成）。
 
-.PHONY: all test lint coverage req-coverage audit-all audit-deps install-hooks
+.PHONY: all test lint coverage req-coverage tier-tripwire audit-all audit-deps install-hooks
 
-all: audit-all test req-coverage
+all: audit-all test req-coverage tier-tripwire
 
 # 全テスト実行。各スタックのテストランナーに置き換える（例: npm test / pytest）。
 test:
@@ -32,6 +32,14 @@ req-coverage:
 	@echo "                       [ADV_MARKER_RE=<advマーカー正規表現>] [REQ_COMMENT_PREFIX=<行頭コメント記法>] \\"
 	@echo "                       bash scripts/check-requirements-coverage.sh"
 	@exit 1
+
+# Tierトリップワイヤ（詳細: docs/rules/tiers.md / SERVICE.md「Tierトリップワイヤ設定」）。
+# 機微パターンをこのサービスの値に設定する（TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS）。
+# 空のまま かつ docs/requirements/.tier-tripwire-none 未 ratify は exit 2（fail-closed）。
+# 機微面が無いサービスは .tier-tripwire-none を人間 commit で ratify して明示宣言する。
+tier-tripwire:
+	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \
+	 bash scripts/check-tier-tripwire.sh
 
 # 整合性監査一式（詳細: docs/rules/consistency.md）
 audit-all:
