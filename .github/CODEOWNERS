@@ -5,8 +5,8 @@
 # （ファイル単体では強制されない。設定手順: docs/rules/git.md「要件パスのブランチ保護」）。
 #
 # ▼所有者はプレースホルダ。実際の GitHub ハンドル/チームに置き換えること。
-docs/requirements/          @OWNER-PLACEHOLDER
-docs/rules/tiers.md         @OWNER-PLACEHOLDER
-docs/rules/requirements.md  @OWNER-PLACEHOLDER
-.req-coverage-baseline      @OWNER-PLACEHOLDER
-.tier-tripwire-allow        @OWNER-PLACEHOLDER
+docs/requirements/          @shohei-osawa
+docs/rules/tiers.md         @shohei-osawa
+docs/rules/requirements.md  @shohei-osawa
+.req-coverage-baseline      @shohei-osawa
+.tier-tripwire-allow        @shohei-osawa
