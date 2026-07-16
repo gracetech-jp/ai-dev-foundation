@@ -19,7 +19,7 @@ fi
 echo "=== ${SERVICE_NAME} の雛形を作成します ==="
 
 # ディレクトリ作成
-mkdir -p "${TARGET}"/{.devcontainer,.claude,.github/workflows,docs/rules,docs/service-rules,docs/decisions,scripts}
+mkdir -p "${TARGET}"/{.devcontainer,.claude,.github/workflows,docs/rules,docs/requirements,docs/service-rules,docs/decisions,scripts}
 
 # devcontainer設定をコピー
 cp /workspace/templates/.devcontainer/Dockerfile "${TARGET}/.devcontainer/"
@@ -50,15 +50,25 @@ cp /workspace/templates/docs/service-rules/*.md "${TARGET}/docs/service-rules/"
 # ADR（意思決定記録）の運用の型を配布（テンプレート＋運用ガイド。基盤固有のADR本体は配らない）
 cp /workspace/templates/docs/decisions/*.md "${TARGET}/docs/decisions/"
 
+# 要件トレーサビリティの雛形（要件テンプレ・INVARIANTS・README）を配布（実要件は各サービスが人間批准で後付け）
+cp /workspace/templates/docs/requirements/*.md "${TARGET}/docs/requirements/"
+# CODEOWNERS（要件パスのレビュー必須。所有者はプレースホルダ＝生成後に人間が実ハンドルへ記入する）
+cp /workspace/templates/.github/CODEOWNERS.template "${TARGET}/.github/CODEOWNERS"
+
 # 品質ゲート一式（Makefile契約・フック・監査雛形・カバレッジ機構・CIワークフロー）を配布
 cp /workspace/templates/Makefile "${TARGET}/Makefile"
 cp /workspace/templates/scripts/audit-consistency.sh "${TARGET}/scripts/"
 cp /workspace/scripts/pre-push "${TARGET}/scripts/"
 cp /workspace/scripts/commit-msg "${TARGET}/scripts/"           # Conventional Commits 検証(中立)
 cp /workspace/scripts/check-coverage.sh "${TARGET}/scripts/"    # カバレッジ・ラチェット判定(中立)
+cp /workspace/scripts/check-requirements-coverage.sh "${TARGET}/scripts/"  # 要件↔テスト検証(中立)
+cp /workspace/scripts/check-tier-tripwire.sh "${TARGET}/scripts/"          # Tierトリップワイヤ(中立)
 cp /workspace/templates/.coverage-floor "${TARGET}/.coverage-floor"  # フロア初期値(サービスがラチェット)
+cp /workspace/templates/.req-coverage-baseline "${TARGET}/.req-coverage-baseline"  # 未カバー要件の移行猶予(空)
+cp /workspace/templates/.tier-tripwire-allow "${TARGET}/.tier-tripwire-allow"      # トリップワイヤ例外allowlist(空)
 chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push" \
-         "${TARGET}/scripts/commit-msg" "${TARGET}/scripts/check-coverage.sh"
+         "${TARGET}/scripts/commit-msg" "${TARGET}/scripts/check-coverage.sh" \
+         "${TARGET}/scripts/check-requirements-coverage.sh" "${TARGET}/scripts/check-tier-tripwire.sh"
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp /workspace/templates/.github/workflows/ci.yml "${TARGET}/.github/workflows/ci.yml"
 
@@ -87,6 +97,12 @@ echo "✅ ~/projects/${SERVICE_NAME} を作成しました"
 echo ""
 echo "作成されたファイル:"
 find "${TARGET}" -not -path '*/.claude/*' | sort
+echo ""
+echo "▼ 生成後に人間が対応する項目（要件トレーサビリティ）:"
+echo "  - .github/CODEOWNERS の @OWNER-PLACEHOLDER を実 GitHub ハンドル/チームに置換する"
+echo "  - 要件パスのブランチ保護を設定する（docs/rules/git.md「要件パスのブランチ保護」チェックリスト）"
+echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none を人間 commit で宣言する"
+echo "  - 既存仕様の要件化は extract-requirements スキルで下書き→人間批准（docs/requirements/ は人間のみ）"
 echo ""
 
 # VS Codeで新規ウィンドウとして開く

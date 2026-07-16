@@ -13,5 +13,7 @@ docs/rules/
 scripts/pre-push
 scripts/commit-msg
 scripts/check-coverage.sh
+scripts/check-requirements-coverage.sh
+scripts/check-tier-tripwire.sh
 scripts/backport-to-common.sh
 scripts/sync-from-common.sh

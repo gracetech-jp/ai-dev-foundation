@@ -71,6 +71,10 @@ fm_list() { # <file> <key> -> 各要素を1行ずつ
 declare -A R_TIER R_STATUS R_TR R_SHA R_NEG R_FILE
 reqs=()
 for f in "$REQ_DIR"/R-*.md; do
+	# 配布テンプレは要件ではないため検証対象外。除外は固定名 R-000-template.md に限定する
+	# （docs/rules/requirements.md がこの名を規定）。それ以外の場所・名前で tier がプレースホルダ/
+	# 不正値でも従来どおり die（exit 2）＝fail-closed を維持する（中身ベースの除外は fail-open のため不採用）。
+	[ "$(basename "$f")" = "R-000-template.md" ] && continue
 	id="$(fm_scalar "$f" id)"
 	tier="$(fm_scalar "$f" tier)"
 	status="$(fm_scalar "$f" status)"

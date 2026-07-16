@@ -45,7 +45,7 @@ echo "[audit] (2) make ターゲット契約の検査..."
 if [ ! -f "$ROOT/Makefile" ]; then
 	report "Makefile が存在しない（quality-gates.md が make ターゲットを前提にしている）"
 else
-	for target in test lint coverage audit-all audit-deps install-hooks; do
+	for target in test lint coverage req-coverage tier-tripwire audit-all audit-deps install-hooks; do
 		if ! grep -qE "^${target}:" "$ROOT/Makefile"; then
 			report "Makefile に必須ターゲット '${target}:' が無い（docs/rules/quality-gates.md 参照）"
 		fi
@@ -78,10 +78,22 @@ for req in \
 	templates/.devcontainer/Dockerfile templates/.devcontainer/postCreate.sh templates/.devcontainer/devcontainer.json \
 	templates/gitignore.template templates/.env.example \
 	templates/SERVICE.md.template templates/README.md.template \
+	scripts/check-requirements-coverage.sh scripts/check-tier-tripwire.sh \
+	templates/docs/requirements templates/.github/CODEOWNERS.template \
+	templates/.req-coverage-baseline templates/.tier-tripwire-allow \
 	templates/docs/service-rules templates/docs/decisions; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
+	fi
+done
+
+# 要件トレーサビリティのターゲット/ジョブが配布雛形に存在するか（退化検出）。
+for pair in "templates/Makefile:req-coverage" "templates/Makefile:tier-tripwire" \
+            "templates/.github/workflows/ci.yml:req-coverage" "templates/.github/workflows/ci.yml:tier-tripwire"; do
+	tfile="${pair%%:*}"; needle="${pair##*:}"
+	if [ -f "$ROOT/$tfile" ] && ! grep -q "$needle" "$ROOT/$tfile"; then
+		report "$tfile に '$needle' がありません（要件トレーサビリティの配布退化）"
 	fi
 done
 

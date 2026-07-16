@@ -45,6 +45,11 @@ CODEOWNERS（`.github/CODEOWNERS`）は「誰のレビューが要るか」を�
 リポジトリのファイルにはコミットできない**ため、各リポジトリで人間が一度だけ手動設定する。
 `settings.json` deny と `guard-dangerous.sh` は補助的な多層防御にすぎず、**主防壁はこのブランチ保護＋CODEOWNERS**。
 
+> **現状ステータス（2026-07-16）**: `ai-dev-foundation` は単独運用のため、本ブランチ保護は**意図的に未対応（後日対応）**。
+> 現時点の要件のLLM編集封鎖は `settings.json` deny＋`guard-dangerous.sh`＋CODEOWNERS で実質担保できている。
+> **共同作業者が増える、または運用フェーズへ移行する時点で、下記チェックリストを実施する**。
+> それまで `scripts/audit-consistency.sh` が出す「要件パスのブランチ保護」警告は**認識済みの未対応（借金）であり、対応漏れではない**。
+
 **手動セットアップ・チェックリスト**（GitHub → Settings → Rules/Branches）:
 - [ ] `main` に Ruleset（または classic branch protection）を作成する
 - [ ] 「Require a pull request before merging」を有効化する
