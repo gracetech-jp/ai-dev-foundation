@@ -1,0 +1,36 @@
+# [profile:product-web] 開発環境 compose（ADR-006 §7.1: PostgreSQL はアプリと別コンテナ）。
+# 本番のアプリ/DB分離構造に開発環境を近づける。DBは**空**で起動する:
+# 初期化SQL（/docker-entrypoint-initdb.d）・スキーマ・マイグレーションは配らない（中身は各サービスが実装する）。
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:cached
+      - ../.claude:/home/node/.claude:delegated
+    environment:
+      # 開発用の既定接続（compose 内の db サービスへ）。上書きは環境変数 / .env で（.env.example 参照）
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      # 開発ローカル専用の既定値。本番の秘密は .env/シークレット管理で（docs/rules/security.md）
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:

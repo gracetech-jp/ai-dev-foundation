@@ -1,0 +1,14 @@
+# profile.manifest — product-web（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
+profile: product-web
+description: 自社の動的Webアプリ向け（FastAPI + PostgreSQL 別コンテナ。Python 3.14 + uv）
+failclosed_profile: full-red
+# 1行1ファイル: <op> <path>。op ∈ {add, replace}
+replace .devcontainer/Dockerfile
+replace .devcontainer/devcontainer.json
+replace Makefile
+replace .env.example
+add .devcontainer/compose.yaml
+add .python-version
+add pyproject.toml
+add app/main.py
+add .service-profile

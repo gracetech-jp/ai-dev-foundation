@@ -1,6 +1,6 @@
-# [profile:web-app ダミー] フェーズ1の合成検証用プレースホルダ。
-# フェーズ3（ADR-006 C-3）で Python/uv 等のスタック断片を実装するまでは _base と同等の中身。
-# PostgreSQL は compose で別コンテナとして立てる（ADR-006 §7.1。ドメイン構造は含めない）。
+# [profile:product-web] FastAPI + PostgreSQL 土台（Python 3.14 + uv 0.11）。ADR-006 C-3。
+# _base の Dockerfile 全文を保持し、uv/Python 層のみを追記した置換ファイル（_base 側の改善は手動同期）。
+# PostgreSQL は同居させない（compose で別コンテナ。.devcontainer/compose.yaml / ADR-006 §7.1）。
 # service: SERVICE_NAME
 FROM ubuntu:24.04
 
@@ -23,4 +23,9 @@ WORKDIR /home/node
 
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
-ENV PATH="/home/node/.claude/local:$PATH"
+# uv 0.11.30（バージョン固定インストーラ。ADR-006 フェーズ3承認）。
+# Python は apt ではなく uv が導入し、バージョンの正は配布する .python-version（3.14系）に置く。
+RUN curl -LsSf https://astral.sh/uv/0.11.30/install.sh | sh \
+    && /home/node/.local/bin/uv python install 3.14
+
+ENV PATH="/home/node/.claude/local:/home/node/.local/bin:$PATH"

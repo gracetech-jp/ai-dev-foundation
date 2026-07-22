@@ -1,0 +1,20 @@
+# [profile:product-web] プロジェクト定義（Python 3.14 + uv）。
+# 依存は互換範囲で指定し、正確な固定は各サービスが uv.lock で行う（uv sync / uv run が自動生成）。
+[project]
+name = "SERVICE_NAME"
+version = "0.1.0"
+description = "SERVICE_NAME（product-web プロファイル生成の土台）"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.116",
+    "uvicorn[standard]>=0.35",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "coverage>=7.10",
+    "ruff>=0.12",
+]

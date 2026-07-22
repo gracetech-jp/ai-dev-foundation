@@ -57,13 +57,18 @@ make_sandbox() {
 	[ "$(cat "$T/.service-profile")" = "product-static" ]
 }
 
-@test "緑: web-app の replace/add が反映され product-static と取り違えない" {
-	run ns svc3 --profile web-app
+@test "緑: product-web の replace/add が反映され product-static と取り違えない" {
+	run ns svc3 --profile product-web
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc3"
-	grep -q "profile:web-app" "$T/.devcontainer/Dockerfile"
+	grep -q "profile:product-web" "$T/.devcontainer/Dockerfile"
 	! grep -q "profile:product-static" "$T/.devcontainer/Dockerfile"
-	[ "$(cat "$T/.service-profile")" = "web-app" ]
+	[ "$(cat "$T/.service-profile")" = "product-web" ]
+	# フェーズ3本実装分: compose・pyproject・参照実装・.python-version が配布される
+	[ -f "$T/.devcontainer/compose.yaml" ]
+	[ -f "$T/pyproject.toml" ]
+	[ -f "$T/app/main.py" ]
+	[ -f "$T/.python-version" ]
 }
 
 @test "緑: SERVICE_NAME 置換が base 由来とプロファイル由来の双方に効く" {
@@ -82,7 +87,7 @@ make_sandbox() {
 	run ns svc5
 	[ "$status" -eq 1 ]
 	[[ "$output" == *"product-static"* ]]
-	[[ "$output" == *"web-app"* ]]
+	[[ "$output" == *"product-web"* ]]
 }
 
 @test "赤: --profile _base の明示指定は exit 1（内部部品。ADR-006 §6）" {
@@ -146,11 +151,31 @@ make_sandbox() {
 	! grep -q "SERVICE_NAME" "$F"
 }
 
-@test "赤維持: web-app は full-red（make test が非0のまま。ADR-006 §7）" {
-	run ns svd3 --profile web-app
+@test "赤維持: product-web は full-red（生成直後 test と tier-tripwire が赤。ADR-006 §7）" {
+	run ns svd3 --profile product-web
 	[ "$status" -eq 0 ]
-	run make -C "$HOME/projects/svd3" test
+	T="$HOME/projects/svd3"
+	# test: 実コマンド（uv run pytest）。テスト0件（またはツール未導入環境）で非0＝実装するまで赤
+	run make -C "$T" test
 	[ "$status" -ne 0 ]
+	# tier-tripwire: .tier-tripwire-none を同梱しない＝機微定義まで exit 2（fail-closed）
+	[ ! -e "$T/docs/requirements/.tier-tripwire-none" ]
+	run make -C "$T" tier-tripwire
+	[ "$status" -ne 0 ]
+	# display-green の skip 緑分岐が混入していないこと（黙のスキップ禁止）
+	! grep -q "skip（display-green）" "$T/Makefile"
+}
+
+@test "境界: product-web の参照実装は /health のみ・ドメイン構造ゼロ（ADR-006 §3.1）" {
+	run ns svd6 --profile product-web
+	[ "$status" -eq 0 ]
+	T="$HOME/projects/svd6"
+	# ルート定義は /health の1本のみ（業務エンドポイントを配らない）
+	routes=$(grep -rE '@app\.(get|post|put|delete|patch)' "$T/app/")
+	[ "$(echo "$routes" | wc -l)" -eq 1 ]
+	echo "$routes" | grep -q '"/health"'
+	# SQL は SELECT 1（疎通確認）のみ。テーブル定義・マイグレーションは存在しない
+	! grep -rniE 'CREATE TABLE|alembic|migrat' "$T/app/" "$T/pyproject.toml" "$T/.devcontainer/compose.yaml"
 }
 
 @test "赤: manifest の failclosed_profile 不正値（all-green 等）は exit 2" {
