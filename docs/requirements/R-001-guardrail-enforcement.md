@@ -9,8 +9,8 @@ tests_ratified_sha: 76da7651cffd87598de1e1d666235d32f30f008d5558890e15c3e64c2fa3
 paths:
   - ".claude/scripts/guard-dangerous.sh"
   - ".claude/settings.json"
-  - "templates/.claude/scripts/guard-dangerous.sh"
-  - "templates/.claude/settings.json"
+  - "profiles/_base/.claude/scripts/guard-dangerous.sh"
+  - "profiles/_base/.claude/settings.json"
 test_assets:
   - "tests/guard-dangerous.bats"
 negative_space:
