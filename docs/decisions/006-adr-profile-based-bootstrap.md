@@ -97,19 +97,17 @@ ai-dev-foundation/
 ### 5.2 `profile.manifest` スキーマ（案）
 
 ```
-# profile.manifest — static-site
+# profile.manifest — static-site（# で行/行末コメント可）
 profile: static-site
-description: "Astro SSG + Cloudflare Pages Functions"
-failclosed_profile: display-green   # 4種のうち後述
-files:
-  - path: .devcontainer/Dockerfile
-    op: replace
-  - path: Makefile
-    op: replace
-  - path: .tier-tripwire-none
-    op: add
-  # ... 以下、追加/置換するファイルを列挙
+description: Astro SSG + Cloudflare Pages Functions
+failclosed_profile: display-green   # full-red | display-green の2種のみ（§7.2）
+# 以降は 1行1ファイル: <op> <path>。op ∈ {add, replace}
+replace .devcontainer/Dockerfile
+replace Makefile
+add .tier-tripwire-none
 ```
+
+> 補足（フェーズ1実装で確定）: 当初案のネストYAML（`files:` 配下の `- path:`/`op:`）は、このリポの行指向マニフェスト作法（`.backport-manifest` 等がすべて「1行1エントリ＋#コメント」）に揃え、`<op> <path>` の1行形式へ平坦化した。bashパーサが数行で済み、シェル肥大化を避けられる。`failclosed_profile` キーはフェーズ1メカニズムでは未消費で、フェーズ2で各プロファイルの初期状態実現に用いる。
 
 シェルは manifest を解釈するだけにとどめ、ロジックを manifest 側へ寄せる（シェル本体を薄く保つ）。
 
@@ -136,6 +134,19 @@ files:
 | `web-app` | **fail-closed 維持** | ビジネスロジックが重く、実装強制の安全網に価値がある。従来どおり test/lint/coverage 等は TODO+exit 1 で赤スタート。 |
 
 **重要（`static-site` でも機微は締める）**: `static-site` が緑スタートなのは**表示部分のみ**。Pages Functions のような外部公開・個人情報を扱う部分は、サービス構築後に要件化し tripwire 対象に含めることで締め直す（本 ADR のスコープ外＝各サービス側作業。§9 参照）。プロファイルは「緑スタートの土台」を配るが、機微を緩めるものではない。
+
+### 7.2 `failclosed_profile` の値（決定: 2種のみ）
+
+manifest の `failclosed_profile` キーが取りうる値は、次の**2種に限定**する。all-green・custom は設けない。
+
+| 値 | 意味 | 対象 |
+|---|---|---|
+| `full-red` | 全ゲート赤スタート。実装するまで CI は赤。 | `web-app`（ロジックが重く、実装強制の安全網に価値がある）|
+| `display-green` | 表示・ビルド系は緑、機微部分は赤。 | `static-site`（表示主体、機微はフォーム等に限局。機微が無いLP単発も実質これで包含）|
+
+**all-green（全ゲート緑スタート）を入れない理由**: fail-closed を根本から抜き、本基盤の背骨「LLMの自己申告を単独で信頼しない」「空虚な緑を潰す」（要件トレーサビリティADR）と正面衝突する。「軽いから」「単発だから」という例外はなし崩しに広がる。LP単発は `display-green` が包含するため、専用の全緑パターンは不要。
+
+**custom（manifestで任意にゲート組み合わせを指定）を入れない理由**: 無数の初期状態が生まれ把握不能になり、「シンプルなメカニズム」原則に反する。fail-closed の初期状態は離散的な少数パターンに限る。2種で表現できない本物のケースが将来出たら、その時点で3つ目の**名前付き**パターンを足す。「何でもあり」の器は先に作らない（`--profile _base` を許さなかったのと同じ判断＝逃げ道を先に空けない）。
 
 ### 7.1 `web-app` のデータベース構成（決定: 別コンテナ）
 
