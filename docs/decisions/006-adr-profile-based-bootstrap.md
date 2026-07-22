@@ -152,7 +152,7 @@ add .tier-tripwire-none
 | プロファイル | 初期状態 | 根拠 |
 |---|---|---|
 | `product-static` | **表示部分は緑スタート**（`display-green`）| 表示主体でロジックが薄く、初手赤の安全網の価値が低い。req-coverage の env デフォルト設定・`.tier-tripwire-none` 同梱・coverage 0床で、生成直後から表示部分の CI が緑。 |
-| `product-web` | **fail-closed 維持**（`full-red`）| ビジネスロジックが重く、実装強制の安全網に価値がある。従来どおり test/lint/coverage 等は TODO+exit 1 で赤スタート。 |
+| `product-web` | **fail-closed 維持**（`full-red`）| ビジネスロジックが重く、実装強制の安全網に価値がある。ゲートは実コマンドで実装するが、生成直後は空プロジェクトのため自然に赤になる（例: pytest はテスト0件で exit 5＝テストを書くまで赤／`.tier-tripwire-none` を配らないので tier-tripwire は exit 2＝機微定義を強制）。TODO+exit 1 の「偽の赤」ではなく、実判定の結果としての赤。lint 等が実コード上クリーンで緑になるのは正当な実判定であり許容する（test/coverage/tier-tripwire が確実に赤なので実装強制は保たれる）。 |
 
 **重要（`product-static` でも機微は締める）**: `product-static` が緑スタートなのは**表示部分のみ**。Pages Functions のような外部公開・個人情報を扱う部分は、サービス構築後に要件化し tripwire 対象に含めることで締め直す（本 ADR のスコープ外＝各サービス側作業。§9 参照）。プロファイルは「緑スタートの土台」を配るが、機微を緩めるものではない。
 
