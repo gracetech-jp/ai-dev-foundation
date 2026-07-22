@@ -2,7 +2,7 @@
 
 - **種別**: Architecture Decision Record / 設計仕様書
 - **対象リポ**: ai-dev-foundation（共通リポ）
-- **ステータス**: 承認済み（2026-07-22 大澤 将平 承認）
+- **ステータス**: 承認済み（2026-07-22 大澤 将平 承認）／**v2改訂 2026-07-22**（事業形態×技術形態の2軸へ再設計。`static-site`/`web-app` → `product-static`/`product-web`。フェーズ1・2は実装済み、フェーズ3で `product-web` 実装＋リネーム）
 - **作成日**: 2026-07-22
 - **決定者**: 大澤 将平
 
@@ -18,12 +18,28 @@
 
 新規サービス生成に **プロファイル**という第一級概念を導入する。シェルは `--profile` でサービス種別を受け取り、`_base`（共通の素の雛形）の上にプロファイル固有の断片を重ねて配布する。
 
-初期プロファイルは2種類:
+### 2.1 分類軸（v2で再設計: 事業形態 × 技術形態）
 
-| プロファイル | 対象 | フロント | バックエンド |
+プロファイルは **2軸マトリクス**で分類する。
+
+- **事業形態軸（自社プロダクト / 受託）**: この軸が「スタックを固定できるか」を決める。自社プロダクトはスタックを*自分で決められる*ので固定してよい。受託は顧客要望に依存し*固定できない*。
+- **技術形態軸（静的 / 動的）**: 静的サイト（HP/LP）か動的Webアプリか。
+
+|  | 静的 | 動的 |
+|---|---|---|
+| **自社プロダクト** | `product-static` | `product-web` |
+| **受託** | （将来）`contract-static` | （将来）`contract-web` |
+
+### 2.2 今回作るのは自社の2象限のみ
+
+受託系（`contract-*`）は、実際に案件が発生した時点で足す（「穴を先に空けない」原則）。現時点で必要なのは自社プロダクトの2つ。
+
+| プロファイル | 対象 | スタック | 初期状態 |
 |---|---|---|---|
-| `static-site` | HP / LP | Astro SSG | Cloudflare Pages Functions（軽量）|
-| `web-app` | SumAI Desk 系 | SPA / SSR | FastAPI + PostgreSQL（土台のみ）|
+| `product-static` | 自社の HP / LP（グレイステックHP、SumAI Desk LP）| Astro SSG（Node 24 / pnpm 10）+ Cloudflare Pages Functions | `display-green` |
+| `product-web` | 自社の動的アプリ（SumAI Desk 系）| Python/FastAPI + PostgreSQL（compose別コンテナ）| `full-red` |
+
+> **v2改訂の経緯**: 当初は技術形態のみの `static-site` / `web-app` で始めた。しかし `web-app` に FastAPI/PostgreSQL を焼こうとした際、「受託案件では顧客要望で Python も PostgreSQL も使わない可能性がある」ことに直面。原因は、スタックを固定できる自社プロダクトと、固定できない受託を、`web-app` という1つの箱に押し込んでいたこと。事業形態軸を足すことで、自社（固定してよい）と受託（固定しない）を分離し、両立させた。フェーズ2で作った `static-site` は `product-static` にリネームする。
 
 ## 3. 不変条件（最重要・違反禁止）
 
@@ -34,10 +50,12 @@
 共通リポおよび全プロファイルは、**サービス固有のドメイン語を一切含まない**。
 禁止語の例: `tenant` / `RLS` / `billing` / `Stripe` / `名寄せ` など、特定サービスの業務概念。
 
-**危険地帯 — `web-app` プロファイル**:
-- PostgreSQL を土台として入れるのは**スタック**であり許容（OK）。
+**危険地帯 — `product-web` プロファイル**:
+- PostgreSQL・Python/FastAPI を土台として入れるのは**スタック**であり許容（OK）。これは「自社プロダクトは全部この構成でいく」と自分で決められるから焼ける。
 - RLS ポリシー、テナント概念、マイグレーションのドメイン雛形を入れるのは**ドメイン**であり禁止（NG）。
-- `web-app` プロファイルは「FastAPI + PostgreSQL が起動しビルド/テストが回る土台」まで。そこにドメイン構造を含めた瞬間、それは共通プロファイルではなく sumai-desk 専用金型になる。
+- `product-web` プロファイルは「FastAPI + PostgreSQL が起動しビルド/テストが回る土台」まで。そこにドメイン構造を含めた瞬間、それは共通プロファイルではなく sumai-desk 専用金型になる。
+
+> なぜ自社プロダクトは Python/PostgreSQL を焼けて、受託は焼けないのか: 自社プロダクトのスタックは*自分で決める*ので固定できる（`product-web`）。受託のスタックは*顧客が決める*ので固定できない（将来の `contract-web` はスタックゼロ・full-red だけを配る想定）。この非対称性が、事業形態で軸を割った理由。
 
 > 判定ルール: 「その語・その構造は、別業種の別サービスでもそのまま使えるか？」使えなければドメイン＝プロファイルに入れてはいけない。
 
@@ -65,21 +83,24 @@
 ai-dev-foundation/
   profiles/
     _base/                    # 全プロファイル共通（現行の素の雛形に相当）
-    static-site/
+    product-static/
       profile.manifest        # 何を追加/置換するかの宣言
       files/                  # 追加・置換するファイル実体
         .devcontainer/Dockerfile      # Node/pnpm 入り（_base を置換）
         Makefile                      # test/lint/audit-deps を pnpm で実装済み（置換）
         ...
-    web-app/
+    product-web/
       profile.manifest
       files/
-        .devcontainer/Dockerfile      # Python/uv + PostgreSQL クライアント等（置換）
+        .devcontainer/Dockerfile      # Python/uv 入り（_base を置換）
         Makefile                      # pytest 等で実装済み（置換）
+        compose.yaml                  # PostgreSQL を別コンテナで起動（§7.1）
         ...
   scripts/
     new-service.sh            # --profile を受ける
 ```
+
+> 将来 `contract-static` / `contract-web` を足す際も同じ `profiles/<name>/` 構造に従う。
 
 ## 5. 合成方式（決定: ファイル追加＋置換方式）
 
@@ -97,8 +118,8 @@ ai-dev-foundation/
 ### 5.2 `profile.manifest` スキーマ（案）
 
 ```
-# profile.manifest — static-site（# で行/行末コメント可）
-profile: static-site
+# profile.manifest — product-static（# で行/行末コメント可）
+profile: product-static
 description: Astro SSG + Cloudflare Pages Functions
 failclosed_profile: display-green   # full-red | display-green の2種のみ（§7.2）
 # 以降は 1行1ファイル: <op> <path>。op ∈ {add, replace}
@@ -114,14 +135,14 @@ add .tier-tripwire-none
 ## 6. シェルインターフェース（決定: `--profile` 必須化）
 
 ```
-./scripts/new-service.sh <サービス名> --profile static-site
-./scripts/new-service.sh <サービス名> --profile web-app
+./scripts/new-service.sh <サービス名> --profile product-static
+./scripts/new-service.sh <サービス名> --profile product-web
 ```
 
 - `--profile` を**必須**とする。未指定はエラーで exit 1 とし、利用可能プロファイル一覧を表示する。
 - 目的: 新規サービス生成時の「種別分類し忘れ」を機械的に防ぐ。
 - **決定: 素の雛形の単体生成は許さない。** `_base` は合成の内部部品としてのみ存在し、`--profile _base` のような明示指定の経路は設けない。分類を徹底し、「とりあえず素で」という分類回避の誘惑を構造的に排除する。将来まだ分類できない種別が出た場合は、その時点で新プロファイルを足す（穴を先に空けておかない）。
-- 選択可能な `--profile` の値は、実在するプロファイル（初期は `static-site` / `web-app`）のみ。
+- 選択可能な `--profile` の値は、実在するプロファイル（現時点は `product-static` / `product-web`）のみ。将来 `contract-static` / `contract-web` を足しうる。
 - 既存のバリデーション（サービス名の正規表現、生成先の既存チェック）は維持する。
 
 ## 7. fail-closed の初期状態（プロファイル別）
@@ -130,10 +151,10 @@ add .tier-tripwire-none
 
 | プロファイル | 初期状態 | 根拠 |
 |---|---|---|
-| `static-site` | **表示部分は緑スタート** | 表示主体でロジックが薄く、初手赤の安全網の価値が低い。req-coverage の env デフォルト設定・`.tier-tripwire-none` 同梱・coverage 0床で、生成直後から表示部分の CI が緑。 |
-| `web-app` | **fail-closed 維持** | ビジネスロジックが重く、実装強制の安全網に価値がある。従来どおり test/lint/coverage 等は TODO+exit 1 で赤スタート。 |
+| `product-static` | **表示部分は緑スタート**（`display-green`）| 表示主体でロジックが薄く、初手赤の安全網の価値が低い。req-coverage の env デフォルト設定・`.tier-tripwire-none` 同梱・coverage 0床で、生成直後から表示部分の CI が緑。 |
+| `product-web` | **fail-closed 維持**（`full-red`）| ビジネスロジックが重く、実装強制の安全網に価値がある。従来どおり test/lint/coverage 等は TODO+exit 1 で赤スタート。 |
 
-**重要（`static-site` でも機微は締める）**: `static-site` が緑スタートなのは**表示部分のみ**。Pages Functions のような外部公開・個人情報を扱う部分は、サービス構築後に要件化し tripwire 対象に含めることで締め直す（本 ADR のスコープ外＝各サービス側作業。§9 参照）。プロファイルは「緑スタートの土台」を配るが、機微を緩めるものではない。
+**重要（`product-static` でも機微は締める）**: `product-static` が緑スタートなのは**表示部分のみ**。Pages Functions のような外部公開・個人情報を扱う部分は、サービス構築後に要件化し tripwire 対象に含めることで締め直す（本 ADR のスコープ外＝各サービス側作業。§9 参照）。プロファイルは「緑スタートの土台」を配るが、機微を緩めるものではない。
 
 ### 7.2 `failclosed_profile` の値（決定: 2種のみ）
 
@@ -141,27 +162,28 @@ manifest の `failclosed_profile` キーが取りうる値は、次の**2種に�
 
 | 値 | 意味 | 対象 |
 |---|---|---|
-| `full-red` | 全ゲート赤スタート。実装するまで CI は赤。 | `web-app`（ロジックが重く、実装強制の安全網に価値がある）|
-| `display-green` | 表示・ビルド系は緑、機微部分は赤。 | `static-site`（表示主体、機微はフォーム等に限局。機微が無いLP単発も実質これで包含）|
+| `full-red` | 全ゲート赤スタート。実装するまで CI は赤。 | `product-web`（ロジックが重く、実装強制の安全網に価値がある）。将来の `contract-web` も同じ。|
+| `display-green` | 表示・ビルド系は緑、機微部分は赤。 | `product-static`（表示主体、機微はフォーム等に限局。機微が無いLP単発も実質これで包含）|
 
 **all-green（全ゲート緑スタート）を入れない理由**: fail-closed を根本から抜き、本基盤の背骨「LLMの自己申告を単独で信頼しない」「空虚な緑を潰す」（要件トレーサビリティADR）と正面衝突する。「軽いから」「単発だから」という例外はなし崩しに広がる。LP単発は `display-green` が包含するため、専用の全緑パターンは不要。
 
 **custom（manifestで任意にゲート組み合わせを指定）を入れない理由**: 無数の初期状態が生まれ把握不能になり、「シンプルなメカニズム」原則に反する。fail-closed の初期状態は離散的な少数パターンに限る。2種で表現できない本物のケースが将来出たら、その時点で3つ目の**名前付き**パターンを足す。「何でもあり」の器は先に作らない（`--profile _base` を許さなかったのと同じ判断＝逃げ道を先に空けない）。
 
-### 7.1 `web-app` のデータベース構成（決定: 別コンテナ）
+### 7.1 `product-web` のデータベース構成（決定: 別コンテナ）
 
-`web-app` プロファイルの開発環境では、**PostgreSQL をアプリと同一コンテナに同居させず、compose で別コンテナとして立てる**。
+`product-web` プロファイルの開発環境では、**PostgreSQL をアプリと同一コンテナに同居させず、compose で別コンテナとして立てる**。
 
 - 理由: 本番環境はアプリとデータベースが分離されているのが通常であり、開発環境をその構造に近づけることで「開発では動いたが本番で嵌る」ズレを減らす。とりわけデータ分離の挙動（マルチテナント等）は本番構造でこそ検証価値が高く、開発と本番の構造差が最も痛い箇所で表面化するのを防ぐ。
 - ドメイン境界の注意: プロファイルが用意するのは「PostgreSQL が別コンテナで起動し、アプリから接続できる土台」まで。スキーマ・マイグレーション・テナント/RLS 等のドメイン構造は含めない（§3.1）。
+- 適用範囲: これは**自社プロダクト**（`product-web`）が PostgreSQL を標準採用すると決めているから焼ける構成。将来の受託（`contract-web`）は DB を顧客要望に委ねるため、compose も PostgreSQL も**配らない**（スタックゼロ・full-red のみ）。
 
 ## 8. 共通リポ側 実装タスク（このADRのスコープ）
 
 | # | タスク | 内容 |
 |---|---|---|
 | C-1 | `profiles/_base/` 整備 | 現行の素の雛形を `_base` として切り出す |
-| C-2 | `profiles/static-site/` 作成 | Node/pnpm 入り Dockerfile、pnpm 実装済み Makefile、req-coverage env デフォルト、`.tier-tripwire-none`、coverage 0床、`profile.manifest` |
-| C-3 | `profiles/web-app/` 作成 | Python/uv の Dockerfile、pytest 実装済み Makefile、fail-closed 維持、`profile.manifest`（**ドメイン語を含めない**）。**PostgreSQL は compose で別コンテナとして立てる**（本番の分離構造に近づける。詳細は §7.1）|
+| C-2 | `profiles/product-static/`（フェーズ2完了） | フェーズ2で `static-site` として実装済み。**v2でのリネーム（`static-site`→`product-static`）はフェーズ3に含める**（`git mv` ＋ manifest の `profile:` 値 ＋ 参照更新 ＋ bats）。中身（Node 24/pnpm 10 Dockerfile、pnpm Makefile、display-green）は不変。|
+| C-3 | `profiles/product-web/` 作成 | Python/uv の Dockerfile、pytest 実装済み Makefile、`full-red` 維持、`compose.yaml`（**PostgreSQL を別コンテナ**、§7.1）、`profile.manifest`（`failclosed_profile: full-red`）。**ドメイン語を含めない**（RLS/tenant/マイグレーション雛形は禁止。PostgreSQL・FastAPI はスタックなので可）。|
 | C-4 | `new-service.sh` 改修 | `--profile` 引数追加（必須化）、manifest 解釈、`_base`＋プロファイル合成、未指定エラー＋一覧表示 |
 | C-5 | `profile.manifest` パーサ | manifest の add/replace を解釈する最小実装 |
 | C-6 | CODEOWNERS デフォルト | プレースホルダを `gracetech-jp` ソロ運用の固定値で配布 |
@@ -184,12 +206,13 @@ manifest の `failclosed_profile` キーが取りうる値は、次の**2種に�
 
 | 論点 | 決定 |
 |---|---|
-| プロファイル分類 | `static-site` / `web-app` の2つ（内部は部品組み合わせの拡張余地を残す）|
+| プロファイル分類 | 2軸（事業形態 自社/受託 × 技術形態 静的/動的）。今回は自社の2つ `product-static` / `product-web`。受託は案件発生時に足す |
 | 合成方式 | ファイル追加＋置換方式（マーカー挿入は不採用）|
 | `--profile` | 必須化（未指定はエラー）|
-| fail-closed 初期値 | `static-site`=表示緑スタート / `web-app`=fail-closed 維持 |
+| fail-closed 初期値 | `product-static`=display-green / `product-web`=full-red |
 | 素の雛形の単体生成 | 許さない（`_base` は内部部品のみ、分類を徹底）|
-| `web-app` の DB | compose で別コンテナ（本番の分離構造に近づける）|
+| `product-web` の DB | compose で別コンテナ（自社は PostgreSQL 標準採用のため焼ける）|
+| 受託プロファイル | スタックゼロ・full-red のみを配る想定（顧客要望に依存するため固定しない）|
 | ドメイン境界 | プロファイルはスタック依存物のみ。ドメイン語（RLS/tenant等）は禁止 |
 | 実装分業 | 本ADRを承認済みアーティファクトとし、実装は現物リポを読めるエージェントへ委譲 |
 
@@ -201,10 +224,10 @@ manifest の `failclosed_profile` キーが取りうる値は、次の**2種に�
 ### 解決済み（本ADRで決定）
 
 - 素の雛形の単体生成: **許さない**（`_base` は内部部品のみ、`--profile` 必須を徹底）。§6 参照。
-- `web-app` の DB 構成: **compose で別コンテナ**（本番の分離構造に近づける）。§7.1 参照。
+- `product-web` の DB 構成: **compose で別コンテナ**（自社は PostgreSQL 標準採用のため焼ける）。§7.1 参照。
 
 ## 12. 次アクション
 
 1. 本ADRを人間（大澤）が承認 → ステータスを「承認済み」に更新し Notion へ ADR 登録。
 2. 承認済みADRを添えて、現物リポを読めるローカルLLM/Claude Code に C-1〜C-8 の実装を依頼。
-3. 実装後、HP を `./scripts/new-service.sh grace-tech-hp --profile static-site` で生成し、基盤の検証を兼ねる。
+3. 実装後、HP を `./scripts/new-service.sh grace-tech-hp --profile product-static` で生成し、基盤の検証を兼ねる。
