@@ -20,12 +20,16 @@
 | `make test` | 全テスト実行 |
 | `make lint` | 静的解析（**警告ゼロで失敗する設定**にする。下記3参照） |
 | `make coverage` | カバレッジのフロア検証（一方向ラチェット。下記5参照。`scripts/check-coverage.sh` で判定） |
+| `make req-coverage` | 要件↔テストのトレーサビリティ検証（`scripts/check-requirements-coverage.sh` で判定。詳細: `docs/rules/requirements.md`） |
+| `make tier-tripwire` | Tier申告のコード実態からの裏取り（`scripts/check-tier-tripwire.sh` で判定。詳細: `docs/rules/tiers.md`） |
 | `make audit-all` | 整合性監査一式（詳細: `docs/rules/consistency.md`） |
 | `make audit-deps` | 依存パッケージの脆弱性監査（詳細: `docs/rules/security.md`） |
 | `make install-hooks` | git フック（pre-push・commit-msg 等）をローカルに導入 |
 
 ## 2. push前ゲート（pre-push フック）
-- push 前に **`make audit-all` ＋ `make test`** を実行し、失敗したら push をブロックする。
+- push 前に **`make audit-all` → `make test` → `make req-coverage` → `make tier-tripwire`** を順に実行し、
+  失敗したら push をブロックする（`make all` と同じ4段。req-coverage / tier-tripwire がCIのみで強制されると
+  要件未達の検出が push 後まで遅れるため、2026-07-22 にローカル側も4段へ揃えた）。
 - 回避手段（`git push --no-verify`）の存在はメッセージに明示する（緊急避難用。常用しない）。
 - フックは `make install-hooks` で導入。導入忘れに備え、CI側を最終防波堤にする（下記4）。
 

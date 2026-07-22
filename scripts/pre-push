@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# git pre-push フック — push 前に整合性チェック・単体テストを実行
+# git pre-push フック — push 前に整合性監査・単体テスト・要件トレーサビリティ・Tierトリップワイヤの4段を実行
+# （make all と同じ構成。docs/rules/quality-gates.md §2）
 # インストール: make install-hooks
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -24,3 +25,25 @@ if ! (cd "$ROOT" && make test); then
   exit 1
 fi
 echo "[pre-push] ✅ 単体テスト通過"
+
+echo ""
+echo "[pre-push] 要件トレーサビリティ（req-coverage）を検証中..."
+if ! (cd "$ROOT" && make req-coverage); then
+  echo ""
+  echo "[pre-push] ❌ 要件トレーサビリティ検証が失敗しました。push をブロックします。"
+  echo "           未カバー要件・批准状態を修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 要件トレーサビリティ通過"
+
+echo ""
+echo "[pre-push] Tierトリップワイヤを検証中..."
+if ! (cd "$ROOT" && make tier-tripwire); then
+  echo ""
+  echo "[pre-push] ❌ Tierトリップワイヤ検証が失敗しました。push をブロックします。"
+  echo "           機微変更に対応する Tier-S 要件を整えてから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ Tierトリップワイヤ通過"
