@@ -159,6 +159,39 @@ else
 	echo "  ⚠ gh CLI 未認証のためブランチ保護 API 確認をスキップ（CI/ローカルでは想定内）。docs/rules/git.md の手動チェックリストで担保。"
 fi
 
+echo "[audit] (7) 配布複製の同期検査（root ↔ profiles/_base）..."
+# guard-dangerous.sh / session-start-rules.sh / skills / agents は root と profiles/_base の両方に複製配置され、
+# 機械還流の対象外＝手動同期（.backport-manifest 注1）。同期漏れは新規サービスだけが古いガードで生まれる
+# 「サイレント分岐」になるため、複製ペアの diff 一致を機械強制する（2026-07-22 棚卸しで同期保証の空白として検出）。
+while IFS= read -r rel; do
+	[ -n "$rel" ] || continue
+	if [ ! -f "$ROOT/$rel" ]; then
+		report "配布複製の片側欠落: $rel が root 側に無い（profiles/_base のみ存在。手動同期漏れ）"
+	elif [ ! -f "$ROOT/profiles/_base/$rel" ]; then
+		report "配布複製の片側欠落: $rel が profiles/_base 側に無い（root のみ存在。手動同期漏れ）"
+	elif ! diff -q "$ROOT/$rel" "$ROOT/profiles/_base/$rel" >/dev/null 2>&1; then
+		report "配布複製が不一致: $rel（root ↔ profiles/_base の手動同期漏れ。diff で差分を確認して揃える）"
+	fi
+done < <(
+	{
+		find .claude/scripts .claude/skills .claude/agents -type f 2>/dev/null
+		find profiles/_base/.claude/scripts profiles/_base/.claude/skills profiles/_base/.claude/agents -type f 2>/dev/null \
+			| sed 's|^profiles/_base/||'
+	} | sort -u
+)
+# settings.json は root にのみローカル固有キー（model/theme/通知フック等）があるため全文一致は課さず、
+# 配布の本体である permissions ブロックのみを正規化（キー順・配列内順序を吸収）して比較する。
+if command -v jq >/dev/null 2>&1; then
+	norm_perms='.permissions | with_entries(.value |= sort)'
+	if ! diff -q \
+		<(jq -S "$norm_perms" "$ROOT/.claude/settings.json") \
+		<(jq -S "$norm_perms" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
+		report ".claude/settings.json の permissions が root ↔ profiles/_base で不一致（手動同期漏れ）"
+	fi
+else
+	report "jq が無く settings.json の permissions 同期検査ができません（guard-dangerous.sh も jq 依存。導入必須）"
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"
