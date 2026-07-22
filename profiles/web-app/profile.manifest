@@ -1,6 +1,7 @@
 # profile.manifest — web-app（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
 profile: web-app
 description: 動的Webアプリ向け（SPA/SSR + FastAPI + PostgreSQL 別コンテナ。中身はフェーズ3 C-3 で実装）
+failclosed_profile: full-red
 # 1行1ファイル: <op> <path>。op ∈ {add, replace}
 replace .devcontainer/Dockerfile
 add .service-profile

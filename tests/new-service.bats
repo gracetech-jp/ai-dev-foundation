@@ -121,3 +121,48 @@ make_sandbox() {
 	run bash "$SB/scripts/new-service.sh" svc11 --profile static-site
 	[ "$status" -eq 2 ]
 }
+
+# ---- フェーズ2: display-green / failclosed_profile（ADR-006 §7.2） ----
+
+@test "緑: static-site 生成直後に display-green ゲート一式（test/lint/coverage/req-coverage/tier-tripwire）が緑" {
+	run ns svd1 --profile static-site
+	[ "$status" -eq 0 ]
+	T="$HOME/projects/svd1"
+	for t in test lint coverage req-coverage tier-tripwire; do
+		run make -C "$T" "$t"
+		[ "$status" -eq 0 ]
+	done
+	# 黙って通さない: skip には理由の警告が付く（空虚な緑を潰す思想）
+	run make -C "$T" test
+	[[ "$output" == *"package.json"* ]]
+}
+
+@test "緑: static-site 生成物に .tier-tripwire-none が同梱されプレースホルダ置換も効く" {
+	run ns svd2 --profile static-site
+	[ "$status" -eq 0 ]
+	F="$HOME/projects/svd2/docs/requirements/.tier-tripwire-none"
+	[ -f "$F" ]
+	grep -q "svd2" "$F"
+	! grep -q "SERVICE_NAME" "$F"
+}
+
+@test "赤維持: web-app は full-red（make test が非0のまま。ADR-006 §7）" {
+	run ns svd3 --profile web-app
+	[ "$status" -eq 0 ]
+	run make -C "$HOME/projects/svd3" test
+	[ "$status" -ne 0 ]
+}
+
+@test "赤: manifest の failclosed_profile 不正値（all-green 等）は exit 2" {
+	make_sandbox
+	sed -i 's/^failclosed_profile: display-green/failclosed_profile: all-green/' "$SB/profiles/static-site/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svd4 --profile static-site
+	[ "$status" -eq 2 ]
+}
+
+@test "赤: manifest の failclosed_profile 欠落は exit 2（分類し忘れ防止）" {
+	make_sandbox
+	sed -i '/^failclosed_profile:/d' "$SB/profiles/static-site/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svd5 --profile static-site
+	[ "$status" -eq 2 ]
+}

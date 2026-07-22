@@ -52,9 +52,12 @@ profiles/
 # コメントは # で行頭・行末に記述可
 profile: <name>         # 必須。ディレクトリ名と一致しないとエラー
 description: <一行説明>  # 必須（プロファイル一覧表示に使用）
+failclosed_profile: <full-red|display-green>  # 必須。初期fail-closed状態（ADR-006 §7.2。この2種のみ・欠落や他値はエラー）
 <op> <path>             # 1行1ファイル。op ∈ {add, replace}
 ```
 
+- `failclosed_profile`: `full-red`＝全ゲート赤スタート（実装するまでCIは赤）、`display-green`＝表示・
+  ビルド系は緑スタート・機微部分は赤のまま。all-green・custom は設けない（理由: ADR-006 §7.2）。
 - `add`: 生成先に無いファイルを追加する（既に在ればエラー）。
 - `replace`: `_base` 由来の同名ファイルを丸ごと差し替える（無ければエラー）。
 - 検証は fail-closed：解釈できない行・絶対パス/`..`/空白を含むパス・`files/` の実体欠落は

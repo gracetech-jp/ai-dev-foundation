@@ -1,6 +1,9 @@
 # profile.manifest — static-site（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
 profile: static-site
-description: 静的サイト向け（Astro SSG + Cloudflare Pages Functions。中身はフェーズ2 C-2 で実装）
+description: 静的サイト向け（Astro SSG + Cloudflare Pages Functions。Node 24 LTS + pnpm 10 の土台）
+failclosed_profile: display-green
 # 1行1ファイル: <op> <path>。op ∈ {add, replace}
 replace .devcontainer/Dockerfile
+replace Makefile
+add docs/requirements/.tier-tripwire-none
 add .service-profile

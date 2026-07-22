@@ -130,6 +130,15 @@ for df in .devcontainer/Dockerfile profiles/_base/.devcontainer/Dockerfile; do
 		report "$df が jq を導入していない（guard-dangerous.sh の依存。片側の退化の疑い）"
 	fi
 done
+# プロファイルが Dockerfile を replace する場合、生成サービスの devcontainer はその Dockerfile になる。
+# jq を欠くと配布先の guard がサイレントに壊れるため、プロファイル側 Dockerfile も同じ検査に含める（C-8 最小着手）。
+for df in "$ROOT"/profiles/*/files/.devcontainer/Dockerfile; do
+	[ -f "$df" ] || continue
+	rel="${df#"$ROOT"/}"
+	if ! grep -qE '(^|[[:space:]])jq([[:space:]]|$|\\)' "$df"; then
+		report "$rel が jq を導入していない（guard-dangerous.sh の依存。プロファイル置換による退化）"
+	fi
+done
 
 echo "[audit] (6) 要件パスのブランチ保護確認（要件のLLM編集封鎖の主防壁。docs/rules/git.md）..."
 # CODEOWNERS の存在と docs/requirements/ 所有者は必須（ファイル欠落は fail）。

@@ -152,15 +152,17 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 
 # ---- 手順2-3: profile.manifest の解釈と add/replace の適用（ADR-006 §5） ----
 # スキーマ（正: docs/rules/repo-layout.md「プロファイル」節）:
-#   profile: <名前>       … 必須。ディレクトリ名と一致しないと exit 2
-#   description: <一行>   … 必須
-#   <op> <path>           … 1行1ファイル。op ∈ {add, replace}。# コメント可
-# バリデーションは fail-closed（未知の行・トラバーサル・空白パス・実体欠落・add先既存・replace先不存在 → exit 2）
+#   profile: <名前>                            … 必須。ディレクトリ名と一致しないと exit 2
+#   description: <一行>                        … 必須
+#   failclosed_profile: <full-red|display-green> … 必須。初期 fail-closed 状態（ADR-006 §7.2。2種のみ）
+#   <op> <path>                                … 1行1ファイル。op ∈ {add, replace}。# コメント可
+# バリデーションは fail-closed（未知の行・不正値・トラバーサル・空白パス・実体欠落・add先既存・replace先不存在 → exit 2）
 MANIFEST="$PROFILES_DIR/$PROFILE/profile.manifest"
 FILES_DIR="$PROFILES_DIR/$PROFILE/files"
 overlay_paths=()
 seen_profile=""
 seen_desc=""
+seen_fcp=""
 while IFS= read -r raw || [ -n "$raw" ]; do
 	line="$(trim "${raw%%#*}")"
 	[ -n "$line" ] || continue
@@ -172,6 +174,13 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 		description:*)
 			[ -n "$(trim "${line#description:}")" ] || die_manifest "description: が空です"
 			seen_desc=1; continue ;;
+		failclosed_profile:*)
+			val="$(trim "${line#failclosed_profile:}")"
+			case "$val" in
+				full-red|display-green) ;;
+				*) die_manifest "failclosed_profile の値が不正です: '$val'（許可: full-red | display-green の2種のみ。ADR-006 §7.2）" ;;
+			esac
+			seen_fcp=1; continue ;;
 		add\ *|add$'\t'*|replace\ *|replace$'\t'*) ;;
 		*)
 			die_manifest "解釈できない行です: '$line'（許可: profile: / description: / add <path> / replace <path>）" ;;
@@ -198,6 +207,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 done < "$MANIFEST"
 [ -n "$seen_profile" ] || die_manifest "profile: ヘッダがありません"
 [ -n "$seen_desc" ] || die_manifest "description: ヘッダがありません"
+[ -n "$seen_fcp" ] || die_manifest "failclosed_profile: ヘッダがありません（full-red | display-green。分類し忘れ防止の必須キー。ADR-006 §7.2）"
 
 # ---- 手順4: プレースホルダ置換（従来どおり。プロファイルが置いたファイルにも効かせる） ----
 for p in ${overlay_paths[@]+"${overlay_paths[@]}"}; do
