@@ -127,6 +127,15 @@ make_sandbox() {
 	[ "$status" -eq 2 ]
 }
 
+@test "緑: 生成物の CODEOWNERS は既定所有者が設定されプレースホルダが残らない（C-6）" {
+	run ns svc12 --profile product-static
+	[ "$status" -eq 0 ]
+	F="$HOME/projects/svc12/.github/CODEOWNERS"
+	[ -f "$F" ]
+	! grep -q "OWNER-PLACEHOLDER" "$F"
+	grep -E "^docs/requirements/" "$F" | grep -q "@shohei-osawa"
+}
+
 # ---- フェーズ2: display-green / failclosed_profile（ADR-006 §7.2） ----
 
 @test "緑: product-static 生成直後に display-green ゲート一式（test/lint/coverage/req-coverage/tier-tripwire）が緑" {

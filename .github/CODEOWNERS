@@ -4,7 +4,7 @@
 # GitHub のブランチ保護／Ruleset で「CODEOWNERS レビュー必須」を有効化して初めて強制力を持つ
 # （ファイル単体では強制されない。設定手順: docs/rules/git.md「要件パスのブランチ保護」）。
 #
-# ▼所有者はプレースホルダ。実際の GitHub ハンドル/チームに置き換えること。
+# ▼所有者は設定済み（ソロ運用の @shohei-osawa）。共同開発者・チームができたら行を追加/変更する。
 docs/requirements/          @shohei-osawa
 docs/rules/tiers.md         @shohei-osawa
 docs/rules/requirements.md  @shohei-osawa

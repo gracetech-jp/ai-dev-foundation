@@ -220,7 +220,7 @@ echo "作成されたファイル:"
 find "${TARGET}" -not -path '*/.claude/*' | sort
 echo ""
 echo "▼ 生成後に人間が対応する項目（要件トレーサビリティ）:"
-echo "  - .github/CODEOWNERS の @OWNER-PLACEHOLDER を実 GitHub ハンドル/チームに置換する"
+echo "  - .github/CODEOWNERS の既定所有者（@shohei-osawa）を確認し、共同開発者・チームがいる場合は行を追加する"
 echo "  - 要件パスのブランチ保護を設定する（docs/rules/git.md「要件パスのブランチ保護」チェックリスト）"
 echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none を人間 commit で宣言する"
 echo "  - 既存仕様の要件化は extract-requirements スキルで下書き→人間批准（docs/requirements/ は人間のみ）"
