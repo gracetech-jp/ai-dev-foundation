@@ -226,7 +226,5 @@ echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微�
 echo "  - 既存仕様の要件化は extract-requirements スキルで下書き→人間批准（docs/requirements/ は人間のみ）"
 echo ""
 
-# VS Codeで新規ウィンドウとして開く（CI・テスト環境など code 不在時はスキップ）
-if command -v code >/dev/null 2>&1; then
-	code "${TARGET}"
-fi
+# エディタは自動で開かない（bats テスト等からの実行でウィンドウが開いて邪魔になるため。2026-07-22）
+echo "開く場合: code \"${TARGET}\""
