@@ -1,4 +1,4 @@
-# [profile:static-site] Astro SSG ビルド土台（Node 24 LTS + pnpm 10）。ADR-006 C-2。
+# [profile:product-static] Astro SSG ビルド土台（Node 24 LTS + pnpm 10）。ADR-006 C-2。
 # _base の Dockerfile 全文を保持し、Node/pnpm 層のみを追記した置換ファイル（_base 側の改善は手動同期）。
 # service: SERVICE_NAME
 FROM ubuntu:24.04

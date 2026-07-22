@@ -1,5 +1,5 @@
-# profile.manifest — static-site（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
-profile: static-site
+# profile.manifest — product-static（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
+profile: product-static
 description: 静的サイト向け（Astro SSG + Cloudflare Pages Functions。Node 24 LTS + pnpm 10 の土台）
 failclosed_profile: display-green
 # 1行1ファイル: <op> <path>。op ∈ {add, replace}

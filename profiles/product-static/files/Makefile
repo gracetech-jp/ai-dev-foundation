@@ -1,4 +1,4 @@
-# SERVICE_NAME — 品質ゲートの入口（static-site プロファイル実装。docs/rules/quality-gates.md の Makefile ターゲット契約）
+# SERVICE_NAME — 品質ゲートの入口（product-static プロファイル実装。docs/rules/quality-gates.md の Makefile ターゲット契約）
 # フック・CI・人間が同じ入口を共有するための規約ターゲット。
 # スタック: Astro SSG + pnpm（Node 24）。初期状態は display-green（ADR-006 §7.2）:
 #   表示・ビルド系は生成直後から緑。ただし黙って通さず、未実装の理由を警告 echo で明示する。
@@ -62,7 +62,7 @@ req-coverage:
 	 bash scripts/check-requirements-coverage.sh
 
 # Tierトリップワイヤ（docs/rules/tiers.md / SERVICE.md「Tierトリップワイヤ設定」）。
-# static-site は docs/requirements/.tier-tripwire-none を同梱しており、空設定で正当スキップする。
+# product-static は docs/requirements/.tier-tripwire-none を同梱しており、空設定で正当スキップする。
 # 機微（問い合わせフォーム等の外部公開・個人情報を扱う部分）を実装したら、要件化のうえ
 # TIER_TRIPWIRE_PATHS を設定して締め直すこと（.tier-tripwire-none の注記参照）。
 tier-tripwire:

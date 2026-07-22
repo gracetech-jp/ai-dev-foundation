@@ -30,8 +30,8 @@ make_sandbox() {
 
 # ---- 緑: 正常系 ----
 
-@test "緑: --profile static-site で生成成功し骨格一式が存在する" {
-	run ns svc1 --profile static-site
+@test "緑: --profile product-static で生成成功し骨格一式が存在する" {
+	run ns svc1 --profile product-static
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc1"
 	# repo-layout.md「必須ファイル / ディレクトリ」との突合（配布漏れなし）
@@ -49,25 +49,25 @@ make_sandbox() {
 	[ -n "$(ls "$T/docs/rules/")" ]
 }
 
-@test "緑: static-site の replace/add が反映される" {
-	run ns svc2 --profile static-site
+@test "緑: product-static の replace/add が反映される" {
+	run ns svc2 --profile product-static
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc2"
-	grep -q "profile:static-site" "$T/.devcontainer/Dockerfile"
-	[ "$(cat "$T/.service-profile")" = "static-site" ]
+	grep -q "profile:product-static" "$T/.devcontainer/Dockerfile"
+	[ "$(cat "$T/.service-profile")" = "product-static" ]
 }
 
-@test "緑: web-app の replace/add が反映され static-site と取り違えない" {
+@test "緑: web-app の replace/add が反映され product-static と取り違えない" {
 	run ns svc3 --profile web-app
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc3"
 	grep -q "profile:web-app" "$T/.devcontainer/Dockerfile"
-	! grep -q "profile:static-site" "$T/.devcontainer/Dockerfile"
+	! grep -q "profile:product-static" "$T/.devcontainer/Dockerfile"
 	[ "$(cat "$T/.service-profile")" = "web-app" ]
 }
 
 @test "緑: SERVICE_NAME 置換が base 由来とプロファイル由来の双方に効く" {
-	run ns svc4 --profile static-site
+	run ns svc4 --profile product-static
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc4"
 	grep -q "svc4" "$T/.devcontainer/devcontainer.json"   # base 由来（sed 生成）
@@ -81,7 +81,7 @@ make_sandbox() {
 @test "赤: プロファイル未指定は exit 1 で利用可能一覧を表示する" {
 	run ns svc5
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"static-site"* ]]
+	[[ "$output" == *"product-static"* ]]
 	[[ "$output" == *"web-app"* ]]
 }
 
@@ -93,39 +93,39 @@ make_sandbox() {
 @test "赤: 存在しないプロファイル名は exit 1 で一覧を表示する" {
 	run ns svc7 --profile no-such-profile
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"static-site"* ]]
+	[[ "$output" == *"product-static"* ]]
 }
 
 @test "赤: サービス名のパストラバーサルは exit 1（既存バリデーション維持）" {
-	run ns "../evil" --profile static-site
+	run ns "../evil" --profile product-static
 	[ "$status" -eq 1 ]
 	[ ! -e "$HOME/evil" ]
 }
 
 @test "赤: 生成先が既に存在すれば exit 1（既存バリデーション維持）" {
 	mkdir -p "$HOME/projects/svc9"
-	run ns svc9 --profile static-site
+	run ns svc9 --profile product-static
 	[ "$status" -eq 1 ]
 }
 
 @test "赤: manifest の未知 op は exit 2（fail-closed）" {
 	make_sandbox
-	echo "frobnicate some/path" >> "$SB/profiles/static-site/profile.manifest"
-	run bash "$SB/scripts/new-service.sh" svc10 --profile static-site
+	echo "frobnicate some/path" >> "$SB/profiles/product-static/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svc10 --profile product-static
 	[ "$status" -eq 2 ]
 }
 
 @test "赤: manifest 記載の files/ 実体欠落は exit 2（fail-closed）" {
 	make_sandbox
-	echo "add ghost.txt" >> "$SB/profiles/static-site/profile.manifest"
-	run bash "$SB/scripts/new-service.sh" svc11 --profile static-site
+	echo "add ghost.txt" >> "$SB/profiles/product-static/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svc11 --profile product-static
 	[ "$status" -eq 2 ]
 }
 
 # ---- フェーズ2: display-green / failclosed_profile（ADR-006 §7.2） ----
 
-@test "緑: static-site 生成直後に display-green ゲート一式（test/lint/coverage/req-coverage/tier-tripwire）が緑" {
-	run ns svd1 --profile static-site
+@test "緑: product-static 生成直後に display-green ゲート一式（test/lint/coverage/req-coverage/tier-tripwire）が緑" {
+	run ns svd1 --profile product-static
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svd1"
 	for t in test lint coverage req-coverage tier-tripwire; do
@@ -137,8 +137,8 @@ make_sandbox() {
 	[[ "$output" == *"package.json"* ]]
 }
 
-@test "緑: static-site 生成物に .tier-tripwire-none が同梱されプレースホルダ置換も効く" {
-	run ns svd2 --profile static-site
+@test "緑: product-static 生成物に .tier-tripwire-none が同梱されプレースホルダ置換も効く" {
+	run ns svd2 --profile product-static
 	[ "$status" -eq 0 ]
 	F="$HOME/projects/svd2/docs/requirements/.tier-tripwire-none"
 	[ -f "$F" ]
@@ -155,14 +155,14 @@ make_sandbox() {
 
 @test "赤: manifest の failclosed_profile 不正値（all-green 等）は exit 2" {
 	make_sandbox
-	sed -i 's/^failclosed_profile: display-green/failclosed_profile: all-green/' "$SB/profiles/static-site/profile.manifest"
-	run bash "$SB/scripts/new-service.sh" svd4 --profile static-site
+	sed -i 's/^failclosed_profile: display-green/failclosed_profile: all-green/' "$SB/profiles/product-static/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svd4 --profile product-static
 	[ "$status" -eq 2 ]
 }
 
 @test "赤: manifest の failclosed_profile 欠落は exit 2（分類し忘れ防止）" {
 	make_sandbox
-	sed -i '/^failclosed_profile:/d' "$SB/profiles/static-site/profile.manifest"
-	run bash "$SB/scripts/new-service.sh" svd5 --profile static-site
+	sed -i '/^failclosed_profile:/d' "$SB/profiles/product-static/profile.manifest"
+	run bash "$SB/scripts/new-service.sh" svd5 --profile product-static
 	[ "$status" -eq 2 ]
 }

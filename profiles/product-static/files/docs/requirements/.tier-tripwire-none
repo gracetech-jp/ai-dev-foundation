@@ -1,11 +1,11 @@
 # 機微面なし宣言（Tierトリップワイヤ）
 #
-# SERVICE_NAME は static-site プロファイル（表示主体の静的サイト）で生成されており、生成時点で
+# SERVICE_NAME は product-static プロファイル（表示主体の静的サイト）で生成されており、生成時点で
 # 機微プロダクトコード（認証・認可・資産の移動や確定・機微データ処理等）を持たない。ゆえに
 # Makefile の tier-tripwire は TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS を空とし、本ファイルの
 # 存在をもって「機微面なし」を宣言する（check-tier-tripwire.sh が正当スキップする）。
 # 本宣言は、生成後にリポジトリの初回 commit を行う人間の commit によって ratify される
-# （static-site プロファイルが同梱。ADR-006 §7 / C-2）。
+# （product-static プロファイルが同梱。ADR-006 §7 / C-2）。
 #
 # 機微を持つに至ったら締め直すこと（display-green は機微を緩めない。ADR-006 §7）:
 # 問い合わせフォーム等（外部公開・個人情報を扱う部分。例: Pages Functions）を実装するときは、
