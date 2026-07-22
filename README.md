@@ -32,8 +32,11 @@ claude
 ## 新サービスを立ち上げる
 
 ```bash
-./scripts/new-service.sh <サービス名>
+./scripts/new-service.sh <サービス名> --profile <static-site|web-app>
 ```
+
+`--profile` は必須（未指定はエラー＋一覧表示）。プロファイルは `profiles/_base/`（共通骨格）の上に
+`profiles/<name>/profile.manifest` の add/replace を重ねて配布する（詳細: `docs/rules/repo-layout.md`）。
 
 ## 主要コマンド
 
@@ -55,7 +58,7 @@ make install-hooks # pre-push / commit-msg フックの導入
 | `docs/rules/` | 共通ルール詳細（品質ゲート・git運用・逆輸入/順輸入 等） |
 | `docs/requirements/` | 要件の正本（人間批准の永続資産。LLMは書き込み禁止） |
 | `docs/decisions/` | ADR（基盤の意思決定記録） |
-| `templates/` | 新サービス用雛形（`.claude/`・devcontainer・CI・Makefile 等） |
+| `profiles/` | 新サービス用雛形（`_base/`=共通骨格＋`static-site/`・`web-app/`=プロファイル断片） |
 | `scripts/` | new-service / 監査 / 還流・取込 / git フック |
 | `tests/` | 配布シェル資産の bats 回帰テスト（`@req` マーカーで要件に紐づけ） |
 | `.claude/` | この基盤リポ自身のガードレール（settings・フック・skills） |
@@ -87,7 +90,10 @@ ai-dev-foundation/
 │   │   ├── backport.md                 # 逆輸入・順輸入の手順
 │   │   └── repo-layout.md              # サービス必須構成の正
 │   └── decisions/                      # ADR（001〜005）
-├── templates/                          # 新サービス用雛形（.claude・devcontainer・CI・Makefile・要件テンプレ・監査）
+├── profiles/                           # 新サービス用雛形（プロファイル合成方式。ADR-006）
+│   ├── _base/                          #   共通骨格（旧 templates/。.claude・devcontainer・CI・Makefile・要件テンプレ・監査）
+│   ├── static-site/                    #   静的サイト向け断片（profile.manifest + files/）
+│   └── web-app/                        #   動的Webアプリ向け断片（profile.manifest + files/）
 ├── scripts/
 │   ├── new-service.sh                  # 新サービス雛形生成
 │   ├── audit-consistency.sh            # 整合性監査（配布漏れ・リンク切れ・退化検出）

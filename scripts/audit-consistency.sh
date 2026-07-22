@@ -31,12 +31,12 @@ for ref in $refs; do
 done
 
 # docs/service-rules/ への参照。CLAUDE.md は共通配布されるため参照先の実体は各サービス側にあり、
-# 基盤リポでは配布元 templates/docs/service-rules/ に存在すれば全サービスで解決する。
+# 基盤リポでは配布元 profiles/_base/docs/service-rules/ に存在すれば全サービスで解決する。
 # どちらにも無ければ全サービスでリンク切れになるため fail とする。
 refs_sr=$(grep -rhoE 'docs/service-rules/[a-z0-9-]+\.md' CLAUDE.md docs/ 2>/dev/null | sort -u)
 for ref in $refs_sr; do
-	if [ ! -f "$ROOT/$ref" ] && [ ! -f "$ROOT/templates/$ref" ]; then
-		report "参照先が存在しない: $ref（root にも templates/ にも無し。全サービスでリンク切れになる）"
+	if [ ! -f "$ROOT/$ref" ] && [ ! -f "$ROOT/profiles/_base/$ref" ]; then
+		report "参照先が存在しない: $ref（root にも profiles/_base/ にも無し。全サービスでリンク切れになる）"
 	fi
 done
 
@@ -72,16 +72,16 @@ fi
 for req in \
 	scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
 	scripts/backport-to-common.sh scripts/sync-from-common.sh .backport-manifest COMMAND.md \
-	templates/Makefile templates/.github/workflows/ci.yml templates/.editorconfig templates/.coverage-floor \
-	templates/.claude/settings.json templates/.claude/scripts/guard-dangerous.sh \
-	templates/.claude/scripts/session-start-rules.sh templates/.claude/skills templates/.claude/agents \
-	templates/.devcontainer/Dockerfile templates/.devcontainer/postCreate.sh templates/.devcontainer/devcontainer.json \
-	templates/gitignore.template templates/.env.example \
-	templates/SERVICE.md.template templates/README.md.template \
+	profiles/_base/Makefile profiles/_base/.github/workflows/ci.yml profiles/_base/.editorconfig profiles/_base/.coverage-floor \
+	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
+	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
+	profiles/_base/.devcontainer/Dockerfile profiles/_base/.devcontainer/postCreate.sh profiles/_base/.devcontainer/devcontainer.json \
+	profiles/_base/gitignore.template profiles/_base/.env.example \
+	profiles/_base/SERVICE.md.template profiles/_base/README.md.template \
 	scripts/check-requirements-coverage.sh scripts/check-tier-tripwire.sh \
-	templates/docs/requirements templates/.github/CODEOWNERS.template \
-	templates/.req-coverage-baseline templates/.tier-tripwire-allow \
-	templates/docs/service-rules templates/docs/decisions; do
+	profiles/_base/docs/requirements profiles/_base/.github/CODEOWNERS.template \
+	profiles/_base/.req-coverage-baseline profiles/_base/.tier-tripwire-allow \
+	profiles/_base/docs/service-rules profiles/_base/docs/decisions; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
@@ -89,8 +89,8 @@ for req in \
 done
 
 # 要件トレーサビリティのターゲット/ジョブが配布雛形に存在するか（退化検出）。
-for pair in "templates/Makefile:req-coverage" "templates/Makefile:tier-tripwire" \
-            "templates/.github/workflows/ci.yml:req-coverage" "templates/.github/workflows/ci.yml:tier-tripwire"; do
+for pair in "profiles/_base/Makefile:req-coverage" "profiles/_base/Makefile:tier-tripwire" \
+            "profiles/_base/.github/workflows/ci.yml:req-coverage" "profiles/_base/.github/workflows/ci.yml:tier-tripwire"; do
 	tfile="${pair%%:*}"; needle="${pair##*:}"
 	if [ -f "$ROOT/$tfile" ] && ! grep -q "$needle" "$ROOT/$tfile"; then
 		report "$tfile に '$needle' がありません（要件トレーサビリティの配布退化）"
@@ -121,9 +121,9 @@ for pair in ${renames[@]+"${renames[@]}"}; do
 done
 
 echo "[audit] (5) Dockerfile の guard 依存(jq)の二重管理チェック..."
-# guard-dangerous.sh は jq に依存する。root と templates の Dockerfile は別実体で手動同期のため、
+# guard-dangerous.sh は jq に依存する。root と profiles/_base の Dockerfile は別実体で手動同期のため、
 # 片方だけ jq 導入が抜ける「サイレント退化」を検出する（全文一致は強制しない＝意図的分岐は許容）。
-for df in .devcontainer/Dockerfile templates/.devcontainer/Dockerfile; do
+for df in .devcontainer/Dockerfile profiles/_base/.devcontainer/Dockerfile; do
 	if [ ! -f "$ROOT/$df" ]; then
 		report "$df が存在しない（devcontainer 設定）"
 	elif ! grep -qE '(^|[[:space:]])jq([[:space:]]|$|\\)' "$ROOT/$df"; then

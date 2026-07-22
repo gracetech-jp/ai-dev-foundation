@@ -31,10 +31,43 @@
 | `.coverage-floor` | カバレッジのフロア値（サービスがラチェット） | 雛形初期値 |
 | `.gitignore` `.env.example` `README.md` | 追跡除外・環境変数雛形・入口 | 雛形から生成 |
 
+## プロファイル（新規サービス生成の合成方式）
+
+新規サービス生成は**プロファイル合成方式**（設計の正: `docs/decisions/006-adr-profile-based-bootstrap.md`）。
+`profiles/_base/`（共通骨格＝旧 `templates/`）を展開した上に、`--profile` で指定した
+`profiles/<name>/` の断片を重ねて配布する。root 正本（`CLAUDE.md`・`docs/rules/` 等、上表「由来: 共通正本」）は
+`_base` に複製せず root から直接コピーする（正本の二重管理を避ける）。
+
+```
+profiles/
+  _base/                  # 共通骨格（全プロファイル共通。単体生成の経路は無い）
+  <name>/
+    profile.manifest      # 何を追加/置換するかの宣言
+    files/<path>          # 追加・置換するファイル実体（生成先の相対パスと同じ配置）
+```
+
+### profile.manifest スキーマ
+
+```
+# コメントは # で行頭・行末に記述可
+profile: <name>         # 必須。ディレクトリ名と一致しないとエラー
+description: <一行説明>  # 必須（プロファイル一覧表示に使用）
+<op> <path>             # 1行1ファイル。op ∈ {add, replace}
+```
+
+- `add`: 生成先に無いファイルを追加する（既に在ればエラー）。
+- `replace`: `_base` 由来の同名ファイルを丸ごと差し替える（無ければエラー）。
+- 検証は fail-closed：解釈できない行・絶対パス/`..`/空白を含むパス・`files/` の実体欠落は
+  すべて即エラー（exit 2）。黙って読み飛ばさない。
+- 適用後、manifest 記載ファイルにも `SERVICE_NAME`/`[サービス名]` のプレースホルダ置換が効く。
+- 各プロファイルは目印として `.service-profile`（生成元プロファイル名1行）を add する。
+- プロファイル層は**スタック依存物を持ってよいが、ドメイン語は禁止**（ADR-006 §3）。
+
 ## 運用
 
-- 新規サービスは `scripts/new-service.sh <名前>` で上記一式を生成する。
-- 「由来: 骨格配布」は共通リポの `templates/` から配布され、サービス側とパスが 1:1 対応しないため
+- 新規サービスは `scripts/new-service.sh <名前> --profile <プロファイル>` で上記一式を生成する
+  （`--profile` は必須。未指定はエラー＋一覧表示。`_base` の単体指定は不可）。
+- 「由来: 骨格配布」は共通リポの `profiles/_base/` から配布され、サービス側とパスが 1:1 対応しないため
   逆輸入は手動同期（詳細: `docs/rules/backport.md`）。
 - 必須要素を増減したら、`new-service.sh`・`audit-consistency.sh`・本ファイルを同時に更新する
   （一箇所だけ直すとドリフトする）。

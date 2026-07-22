@@ -79,7 +79,7 @@ rc() {
 }
 
 @test "配布テンプレ R-000-template.md は検証対象外 → exit 0（配線後も詰まらない）" {
-	cp "$BATS_TEST_DIRNAME/../templates/docs/requirements/R-000-template.md" "$FIX/docs/requirements/"
+	cp "$BATS_TEST_DIRNAME/../profiles/_base/docs/requirements/R-000-template.md" "$FIX/docs/requirements/"
 	run rc
 	[ "$status" -eq 0 ]
 }

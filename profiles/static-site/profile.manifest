@@ -1,0 +1,6 @@
+# profile.manifest — static-site（スキーマの正: docs/rules/repo-layout.md「プロファイル」節）
+profile: static-site
+description: 静的サイト向け（Astro SSG + Cloudflare Pages Functions。中身はフェーズ2 C-2 で実装）
+# 1行1ファイル: <op> <path>。op ∈ {add, replace}
+replace .devcontainer/Dockerfile
+add .service-profile

@@ -1,9 +1,10 @@
 # .backport-manifest — 共通所有ファイルの一覧（逆輸入の対象）
 # scripts/backport-to-common.sh がここに列挙したファイルだけを共通リポへ還流する。
 # ルール: 対象はスタック中立に保つ。サービス固有は SERVICE.md 等へ分離（詳細: docs/rules/backport.md）。
-# 注1: 共通リポで templates/ 由来として配布される骨格（.claude/ 配下・.devcontainer/・.github/workflows/・
-#      Makefile・監査スクリプト雛形・.editorconfig 等）は、共通リポ側では templates/ 以下に置かれ
-#      サービス側の配置とパスが 1:1 対応しないため、この機械還流の対象外とする（別途手動同期）。
+# 注1: 共通リポで profiles/ 由来として配布される骨格（.claude/ 配下・.devcontainer/・.github/workflows/・
+#      Makefile・監査スクリプト雛形・.editorconfig 等）は、共通リポ側では profiles/_base/（旧 templates/）
+#      およびプロファイル層以下に置かれ、サービス側の配置とパスが 1:1 対応しないため、
+#      この機械還流の対象外とする（別途手動同期）。
 # 注2: このマニフェスト自身は還流対象に含めない。マニフェストはリポごとのローカル設定であり、
 #      あるサービスのローカル改変を全サービスへ伝播させないため（共通側マニフェストは共通リポで編集）。
 

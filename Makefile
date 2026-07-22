@@ -14,7 +14,7 @@ all: audit-all test req-coverage tier-tripwire
 # サービスリポジトリ側は各スタックのテストランナーで上書きする（bats は基盤の dogfood 専用）。
 test:
 	@echo "[test] 配布シェル資産の構文を検査します。"
-	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh templates/.claude/scripts/*.sh templates/scripts/*.sh templates/.devcontainer/postCreate.sh; do bash -n "$$f" || exit 1; done
+	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh; do bash -n "$$f" || exit 1; done
 	@command -v bats >/dev/null 2>&1 || { echo "[test] ❌ bats が見つかりません（fail-closed。導入: apt-get install bats）"; exit 1; }
 	@echo "[test] bats を実行中..."
 	@bats tests/
@@ -25,7 +25,7 @@ test:
 lint:
 	@command -v shellcheck >/dev/null 2>&1 || { echo "[lint] ❌ shellcheck が見つかりません（fail-closed。導入: apt-get install shellcheck）"; exit 1; }
 	@echo "[lint] shellcheck を実行中..."
-	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh templates/.claude/scripts/*.sh templates/scripts/*.sh templates/.devcontainer/postCreate.sh || exit 1
+	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh || exit 1
 	@echo "[lint] ✅ 警告なし"
 
 # カバレッジのフロア検証（ラチェット）。基盤リポはアプリコードが無いためスキップ。

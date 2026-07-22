@@ -6,7 +6,7 @@
 !.claude/skills/**
 !.claude/agents/
 !.claude/agents/**
-!templates/.claude/
+!profiles/_base/.claude/
 .env
 # 秘密ファイルは誤コミット防止のため追跡しない（読取は settings.json deny と guard で別途遮断）
 *.pem
