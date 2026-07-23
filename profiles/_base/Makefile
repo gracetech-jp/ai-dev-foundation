@@ -6,22 +6,27 @@
 
 all: audit-all test req-coverage tier-tripwire
 
+# 未実装(TODO)ターゲットは exit 3 を返す（CI 契約: docs/rules/quality-gates.md §4）。
+# CI の gates ジョブは make のエラー行「Error 3」で TODO を構造的に識別し soft（警告のみ）扱いにする。
+# 実装したら exit 3 行ごと削除する＝以後の失敗は本物の違反として red になる。
+# ※ req-coverage の未設定だけは exit 3 にしない（要件トレーサビリティは fail-closed を維持し無条件 red）。
+
 # 全テスト実行。各スタックのテストランナーに置き換える（例: npm test / pytest）。
 test:
 	@echo "[test] TODO: このサービスのテストコマンドを設定してください（例: npm test）"
-	@exit 1
+	@exit 3
 
 # 静的解析。ゼロ警告ゲート（警告が出たら失敗させる設定にする。例: eslint --max-warnings=0）。
 lint:
 	@echo "[lint] TODO: このサービスの静的解析コマンドを設定してください（例: npm run lint）"
-	@exit 1
+	@exit 3
 
 # カバレッジのフロア検証（一方向ラチェット。詳細: docs/rules/quality-gates.md §5）。
 # カバレッジを計測し、測定値を scripts/check-coverage.sh に渡してフロア割れを失敗させる。
 coverage:
 	@echo "[coverage] TODO: カバレッジを計測し scripts/check-coverage.sh に測定値を渡してください"
 	@echo "         例: bash scripts/check-coverage.sh <測定カバレッジ%>"
-	@exit 1
+	@exit 3
 
 # 要件↔テストのカバレッジ・妥当性・改変検知（詳細: docs/rules/requirements.md / testing.md）。
 # マーカー走査設定はスタック依存。このサービスの構成に合わせて env を設定して実行する。
@@ -48,7 +53,7 @@ audit-all:
 # 依存パッケージの脆弱性監査（詳細: docs/rules/security.md）。
 audit-deps:
 	@echo "[audit-deps] TODO: 依存の脆弱性監査コマンドを設定してください（例: npm audit --audit-level=high / pip-audit）"
-	@exit 1
+	@exit 3
 
 # git フック（pre-push・commit-msg）をローカルに導入する
 install-hooks:

@@ -38,10 +38,20 @@
   （例：多くのlinterが持つ「max-warnings=0」相当の設定）。
 - 「後で直す」を許すと警告が累積し、本当に危険な指摘が埋もれる。閾値ゼロで常にクリーンに保つ。
 
-## 4. CI 多段ゲート
-- ゲートを**独立ジョブ**に分割する：`test` / `lint` / 型検査 / 整合性 / スキーマdrift など。
-  どれが落ちたか一目で分かり、無関係な再実行を避けられる。
-- **build / deploy はこれら全ジョブの成功を前提**にする（依存関係に含める）。1つでも赤ならデプロイに進めない。
+## 4. CI 3ジョブ構成（gates 統合＋audit＋secret-scan）
+- 配布 CI は3ジョブ：**`gates`**（lint / test / coverage / audit-deps / req-coverage / tier-tripwire を
+  devcontainer ビルド1回で明示列挙実行）／**`audit`**（整合性監査・素runner）／**`secret-scan`**（gitleaks・素runner）。
+  旧「ターゲットごとに独立ジョブ」構成はビルドが毎push×6回走るため 2026-07-23 に統合した（solo・MVP のコスト簡素化）。
+- `gates` は `make all` を使わない（`all` は lint / coverage / audit-deps を含まない union 未満のため。
+  明示列挙で「黙って落ちるターゲット」を作らない）。
+- **fail/soft の原則：「未実装(TODO) = soft signal、規約違反 = red」**。赤は本物の違反にのみ予約する。
+  - **TODO 契約**：Makefile 雛形の未実装ターゲットは **exit 3** を返す。CI は make の決定論的エラー行
+    「`make: *** [...] Error 3`」で TODO を構造的に識別し soft（警告のみ・ジョブ継続）にする。
+    実装したら exit 3 行を削除する＝以後の失敗は red。
+  - **req-coverage / tier-tripwire は soft 化しない**（設定エラー exit 2 含め無条件 red。fail-closed 維持）。
+  - **coverage は floor=0 の間は soft**。`make coverage` を実装し `.coverage-floor` を 0 より上げた時点で
+    自動的に red 化する（発火に人手の切替操作は不要）。
+- **build / deploy は全ジョブの成功を前提**にする（依存関係に含める）。1つでも赤ならデプロイに進めない。
 - ローカルフックはあくまで早期検出用。**CIを唯一の必須ゲート**とみなす（フック未導入・`--no-verify`を吸収）。
 
 ## 5. カバレッジのラチェット（一方向ラチェット）
