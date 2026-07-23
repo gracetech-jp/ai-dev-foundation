@@ -97,8 +97,6 @@ chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/s
 # 共通ルールをそのままコピー（root 正本。_base には複製しない）
 # docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）
 cp "$ROOT/CLAUDE.md" "${TARGET}/CLAUDE.md"
-# COMMAND.md（Claude Code コマンドリファレンス）はスタック非依存の共通正本。root からコピーし還流対象に含める
-cp "$ROOT/COMMAND.md" "${TARGET}/COMMAND.md"
 cp "$ROOT/docs/rules/"*.md "${TARGET}/docs/rules/"
 
 # サービス固有ルールの雛形を配布（CLAUDE.md が docs/service-rules/consistency.md を参照するため、

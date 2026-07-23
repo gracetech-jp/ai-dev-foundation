@@ -10,7 +10,6 @@
 |---|---|---|
 | `CLAUDE.md` | AI駆動開発の共通ルール（基盤から配布・逆輸入対象） | 共通正本 |
 | `SERVICE.md` | サービス固有ルール（スタック表・構成・環境変数） | 雛形から生成 |
-| `COMMAND.md` | Claude Code コマンドリファレンス | 共通正本 |
 | `docs/rules/` | 共通ルール群（本ファイル含む） | 共通正本 |
 | `docs/requirements/` | 要件の永続資産（人間批准・一意ID・negative space。詳細: `docs/rules/requirements.md`） | 骨格配布 |
 | `docs/service-rules/` | サービス固有ルール（整合性の具体手順等） | 雛形 |

@@ -54,7 +54,6 @@ make install-hooks # pre-push / commit-msg フックの導入
 | パス | 内容 |
 |---|---|
 | `CLAUDE.md` | AI開発共通ルール（全サービスへ配布される正本） |
-| `COMMAND.md` | Claude Code コマンドリファレンス（共通正本） |
 | `docs/rules/` | 共通ルール詳細（品質ゲート・git運用・逆輸入/順輸入 等） |
 | `docs/requirements/` | 要件の正本（人間批准の永続資産。LLMは書き込み禁止） |
 | `docs/decisions/` | ADR（基盤の意思決定記録） |
@@ -108,7 +107,7 @@ ai-dev-foundation/
 ├── .req-coverage-baseline              # 未カバー要件のベースライン免除（Tier B/C のみ可）
 ├── .tier-tripwire-allow                # トリップワイヤの明示免除リスト
 ├── Makefile                            # 品質ゲートのターゲット契約
-├── CLAUDE.md / COMMAND.md              # AI開発共通ルール・コマンドリファレンス（共通正本）
+├── CLAUDE.md                           # AI開発共通ルール（共通正本）
 └── README.md
 ```
 

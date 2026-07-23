@@ -17,7 +17,7 @@
 | データモデル | 該当なし（DB非依存） | — |
 | 入出力スキーマ | profile.manifest スキーマ・要件front-matter | `profiles/*/profile.manifest`（正: `docs/rules/repo-layout.md`）・`docs/rules/requirements.md` §2 |
 | ビジネスロジック | 配布・検証スクリプト | `scripts/*.sh`・`.claude/scripts/*.sh` |
-| 公開インターフェース | 配布骨格・共通ルール正本 | `profiles/`・`docs/rules/`・`CLAUDE.md`・`COMMAND.md` |
+| 公開インターフェース | 配布骨格・共通ルール正本 | `profiles/`・`docs/rules/`・`CLAUDE.md` |
 
 ---
 

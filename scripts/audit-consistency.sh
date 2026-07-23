@@ -71,7 +71,7 @@ fi
 # ディレクトリ単位で配布されるもの（skills/agents/service-rules/decisions）は basename がディレクトリ名。
 for req in \
 	scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
-	scripts/backport-to-common.sh scripts/sync-from-common.sh .backport-manifest COMMAND.md \
+	scripts/backport-to-common.sh scripts/sync-from-common.sh .backport-manifest \
 	profiles/_base/Makefile profiles/_base/.github/workflows/ci.yml profiles/_base/.editorconfig profiles/_base/.coverage-floor \
 	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
 	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
