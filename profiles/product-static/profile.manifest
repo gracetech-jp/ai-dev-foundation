@@ -5,5 +5,6 @@ failclosed_profile: display-green
 # 1行1ファイル: <op> <path>。op ∈ {add, replace}
 replace .devcontainer/Dockerfile
 replace Makefile
+replace .claude/settings.json
 add docs/requirements/.tier-tripwire-none
 add .service-profile

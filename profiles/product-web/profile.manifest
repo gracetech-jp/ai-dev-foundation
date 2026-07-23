@@ -6,6 +6,7 @@ failclosed_profile: full-red
 replace .devcontainer/Dockerfile
 replace .devcontainer/devcontainer.json
 replace Makefile
+replace .claude/settings.json
 replace .env.example
 add .devcontainer/compose.yaml
 add .python-version

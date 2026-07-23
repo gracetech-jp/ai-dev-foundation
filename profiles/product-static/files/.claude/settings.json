@@ -1,0 +1,74 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(make test:*)",
+      "Bash(make lint:*)",
+      "Bash(make audit-all:*)"
+    ],
+    "ask": [
+      "Bash(*migrate*)",
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)",
+      "Bash(pnpm add:*)",
+      "Bash(gh workflow run:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(rm -rf:*)",
+      "Bash(sudo rm:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D:*)",
+      "Write(docs/requirements/**)",
+      "Edit(docs/requirements/**)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.*.local)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/id_rsa)",
+      "Read(**/id_ed25519)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/.npmrc)",
+      "Read(**/secrets/**)",
+      "Read(**/.ssh/**)",
+      "Read(**/.aws/**)",
+      "Read(**/.config/gcloud/**)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/session-start-rules.sh\"",
+            "timeout": 10,
+            "statusMessage": "プロジェクトルールを読み込み中..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/guard-dangerous.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

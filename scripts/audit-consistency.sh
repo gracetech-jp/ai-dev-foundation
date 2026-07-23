@@ -193,6 +193,17 @@ if command -v jq >/dev/null 2>&1; then
 		<(jq -S "$norm_perms" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
 		report ".claude/settings.json の permissions が root ↔ profiles/_base で不一致（手動同期漏れ）"
 	fi
+	# プロファイル層の settings.json（ask のスタック別絞り込み。2026-07-23 導入）は
+	# ask のみ _base と差分可。allow/deny/hooks の変更が _base に入ってもプロファイル複製に
+	# 反映されず配布が分岐する事故を、ここで機械検出する（複製のトレードオフの機械的な塞ぎ）。
+	for pset in "$ROOT"/profiles/*/files/.claude/settings.json; do
+		[ -f "$pset" ] || continue
+		if ! diff -q \
+			<(jq -S 'del(.permissions.ask)' "$ROOT/profiles/_base/.claude/settings.json") \
+			<(jq -S 'del(.permissions.ask)' "$pset") >/dev/null 2>&1; then
+			report "プロファイル settings.json が _base と不一致（ask 以外の差分は禁止・手動同期漏れ）: ${pset#"$ROOT"/}"
+		fi
+	done
 else
 	report "jq が無く settings.json の permissions 同期検査ができません（guard-dangerous.sh も jq 依存。導入必須）"
 fi
