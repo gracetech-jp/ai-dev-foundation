@@ -155,8 +155,21 @@ echo "[audit] (7) 配布複製の同期検査（root ↔ profiles/_base）..."
 # guard-dangerous.sh / session-start-rules.sh / skills / agents は root と profiles/_base の両方に複製配置され、
 # 機械還流の対象外＝手動同期（.backport-manifest 注1）。同期漏れは新規サービスだけが古いガードで生まれる
 # 「サイレント分岐」になるため、複製ペアの diff 一致を機械強制する（2026-07-22 棚卸しで同期保証の空白として検出）。
+# 基盤専用資産（root にのみ置き、意図的に配布しないもの）は片側欠落検査から除外する。
+# 追加時は「配布しない」判断の日付・理由をここに1行残すこと。
+FOUNDATION_ONLY=(
+	".claude/skills/audit-ai-rules/"  # ルール監査は基盤で一括実施（2026-07-23 配布除外。docs/rules/backport.md）
+)
+is_foundation_only() {
+	local p
+	for p in "${FOUNDATION_ONLY[@]}"; do
+		case "$1" in "$p"*) return 0 ;; esac
+	done
+	return 1
+}
 while IFS= read -r rel; do
 	[ -n "$rel" ] || continue
+	is_foundation_only "$rel" && continue
 	if [ ! -f "$ROOT/$rel" ]; then
 		report "配布複製の片側欠落: $rel が root 側に無い（profiles/_base のみ存在。手動同期漏れ）"
 	elif [ ! -f "$ROOT/profiles/_base/$rel" ]; then
