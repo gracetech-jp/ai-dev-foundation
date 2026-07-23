@@ -45,10 +45,11 @@ CODEOWNERS（`.github/CODEOWNERS`）は「誰のレビューが要るか」を�
 リポジトリのファイルにはコミットできない**ため、各リポジトリで人間が一度だけ手動設定する。
 `settings.json` deny と `guard-dangerous.sh` は補助的な多層防御にすぎず、**主防壁はこのブランチ保護＋CODEOWNERS**。
 
-> **現状ステータス（2026-07-16）**: `ai-dev-foundation` は単独運用のため、本ブランチ保護は**意図的に未対応（後日対応）**。
+> **現状ステータス（2026-07-16）**: `ai-dev-foundation` は単独運用のため、本ブランチ保護は**意図的に未対応（後日対応）＝認識済みの借金であり、対応漏れではない**。
 > 現時点の要件のLLM編集封鎖は `settings.json` deny＋`guard-dangerous.sh`＋CODEOWNERS で実質担保できている。
 > **共同作業者が増える、または運用フェーズへ移行する時点で、下記チェックリストを実施する**。
-> それまで `scripts/audit-consistency.sh` が出す「要件パスのブランチ保護」警告は**認識済みの未対応（借金）であり、対応漏れではない**。
+> 監査（`audit-consistency.sh`）は CODEOWNERS の存在のみ検査する。サーバ側ブランチ保護の API 確認は
+> 行わない（認識済みの借金を毎push⚠警告する空回りだったため 2026-07-23 に撤去。下記チェックリスト実施時に再追加する）。
 
 **手動セットアップ・チェックリスト**（GitHub → Settings → Rules/Branches）:
 - [ ] `main` に Ruleset（または classic branch protection）を作成する
@@ -57,9 +58,10 @@ CODEOWNERS（`.github/CODEOWNERS`）は「誰のレビューが要るか」を�
 - [ ] 「Do not allow bypassing the above settings」相当を有効化し、管理者もバイパス不可にする
 - [ ] 必須ステータスチェックに `req-coverage` / `tier-tripwire` / `audit` / `test` を含める
 - [ ] 設定後、`docs/requirements/**` を変更する PR で Code Owner レビューが実際に要求されることを1度確認する
+- [ ] `scripts/audit-consistency.sh` の CODEOWNERS 検査に、サーバ側ブランチ保護（Ruleset）の API 確認を再追加する
+      （2026-07-23 に空回り警告として撤去済み。有効化後は検査が実態を持つため復活させる）
 
-> 未設定の場合、`scripts/audit-consistency.sh` の「要件パスのブランチ保護確認」が警告で surface する
-> （API 不可環境ではスキップ＋警告）。恒久的な担保はこの手動設定で行う。
+> 恒久的な担保はこの手動設定で行う。
 
 ## コミット粒度の目安
 - 1つの機能追加 = 1コミット
