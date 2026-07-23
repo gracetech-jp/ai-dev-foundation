@@ -96,5 +96,5 @@
 - CLAUDE.md本体は200行以内を目安に保つ。超えそうな場合は個別ルールを`docs/rules/`に切り出し、本体には要点のみ残す
 - AIが同じ間違いを繰り返した場合、原因と理由（なぜそのルールが必要か）を明記した1行を該当ルールファイルに追記する。理由のない抽象的なルール（例：「きれいなコードを書く」）は追加しない
 - `SERVICE.md`の技術スタック表・ディレクトリ構成・環境変数表は、実装（依存定義・設定ファイル・モジュール構成）を正としてズレがないか、整合性監査の対象に含める（原則: `docs/rules/consistency.md`、具体手順・自動チェック: `docs/service-rules/consistency.md`）
-- 共通ルール（`docs/rules/`）は基盤リポ `ai-dev-foundation` を正とする。サービス側で改善したら閉じずに逆輸入で還流し（`scripts/backport-to-common.sh`）、共通リポの改善は各サービスが順輸入で取り込む（`scripts/sync-from-common.sh`。週次または作業の区切りが目安）。手順: `docs/rules/backport.md`。サービス固有は `SERVICE.md`・`docs/service-rules/` に置き、共通ルールに混ぜない
+- 共通ルール（`docs/rules/`）は基盤リポ `ai-dev-foundation` を正とする。サービス側で改善したら閉じずに逆輸入で還流し（`scripts/backport-to-common.sh`）、共通リポの改善は各サービスが順輸入で取り込む（`scripts/sync-from-common.sh`。作業の区切りが目安）。手順: `docs/rules/backport.md`。サービス固有は `SERVICE.md`・`docs/service-rules/` に置き、共通ルールに混ぜない
 - リポジトリの必須構成（全サービス共通で置くべきファイル・ディレクトリ）は `docs/rules/repo-layout.md` を正とする
