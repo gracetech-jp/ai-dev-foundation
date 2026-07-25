@@ -27,7 +27,7 @@
 - **`git push`はClaude Codeが自ら実行しない。「プッシュして」と言われても、実行すべきコマンドを提示するのみとし、ユーザーがターミナルで手動実行する**
 - **整合性監査を定期的に実施する**（詳細: `docs/rules/consistency.md`）
 
-> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny` でも技術的にブロックされている（プロンプト遵守のみに頼らない二重の防御）。加えて `PreToolUse` フック `.claude/scripts/guard-dangerous.sh` が Bash 実行前にコマンドを検査し、`rm -fr`・`git push -f` のような **deny の文字列一致をすり抜ける表記ゆれ**、および `cat .env` のような **bash 経由の秘密ファイル読み取り**を決定論的に遮断する（exit 2）。`.env` 系の Read も `permissions.deny` で拒否。DBマイグレーション・パッケージ導入・ワークフロー実行(`gh workflow run`)は `permissions.ask` で実行前確認が入る。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
+> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny` でも技術的にブロックされている（プロンプト遵守のみに頼らない二重の防御）。加えて `PreToolUse` フック `.claude/scripts/guard-dangerous.sh` が Bash 実行前にコマンドを検査し、`rm -fr`・`git push -f` のような **deny の文字列一致をすり抜ける表記ゆれ**、および `cat .env`・`node -e "…readFileSync('.env')…"` のような **bash 経由（インタプリタ経由を含む）の秘密ファイル読み取り**を決定論的に遮断する（exit 2）。`.env` 系の Read も `permissions.deny` で拒否。**ただしこれは静的検査であり、難読化（`'.e'+'nv'`）・ファイル実行（`python script.py`）・`npm run` 経由は原理的に塞げない。脅威モデルは「不注意」であって「悪意ある実行者」ではなく、後者を想定するならファイル権限・秘密の非ファイル化・ネットワーク遮断で対処する**（防御ラインの詳細: `docs/rules/security.md` §静的検査の防御ライン）。DBマイグレーション・パッケージ導入・ワークフロー実行(`gh workflow run`)は `permissions.ask` で実行前確認が入る。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
 
 ---
 

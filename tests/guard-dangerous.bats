@@ -106,6 +106,28 @@ decision_of() {
 	[ -z "$output" ]
 }
 
+# ---- 層A: process.env / import.meta.env は「言語構文」であり .env ファイルではない ----
+# 秘密パス正規表現 `\.env(\.[a-zA-Z0-9_]+)*` が process.env.NODE_ENV に一致してしまう問題の回帰テスト。
+# 層B（READERS へのインタプリタ追加）はこのサニタイズが効いていることを前提に成立する。
+
+@test "層A: grep -r process.env src/ を許可する" {
+	run run_guard "grep -r process.env src/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層A: grep -rn process.env.NODE_ENV を許可する" {
+	run run_guard "grep -rn 'process.env.NODE_ENV' src/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層A: import.meta.env の grep を許可する" {
+	run run_guard "grep -r import.meta.env src/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
 @test "Bash 以外のツールは素通しする" {
 	run bash -c 'jq -n "{tool_name:\"Read\",tool_input:{file_path:\".env\"}}" | bash "'"$GUARD"'"'
 	[ "$status" -eq 0 ]
@@ -236,6 +258,574 @@ decision_of() {
 
 @test "R-002: 共通所有ファイルに触れないセグメントの rm は素通しする（誤検知しない）" {
 	run run_guard_svc "rm build/tmp.txt && cat docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ============================================================================
+# 層B: インタプリタ経由の秘密ファイル読み取りは deny（2026-07-25）
+# サービス側 devcontainer への python / node 導入で「インタプリタが存在しない」前提が消えたため、
+# 平文で秘密パスが現れる読み取りを塞ぐ。防御ラインの範囲は docs/rules/security.md §静的検査の防御ライン。
+# ============================================================================
+
+@test "層B: python -c による .env 読み取りを deny する" {
+	run run_guard "python -c \"print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: python3 -c による .env 読み取りを deny する" {
+	run run_guard "python3 -c \"import os;print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: python -m json.tool .env を deny する" {
+	run run_guard "python -m json.tool .env"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: パイプでコードを流し込む python を deny する" {
+	run run_guard "echo \"print(open('.env').read())\" | python"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: ヒアドキュメント（python3 - <<PY）を deny する" {
+	run run_guard "$(printf 'python3 - <<PY\nprint(open(".env").read())\nPY\n')"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: ヒアドキュメント（node <<JS）を deny する" {
+	run run_guard "$(printf 'node <<JS\nconsole.log(require("fs").readFileSync(".env","utf8"))\nJS\n')"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: node -e による .env 読み取りを deny する" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync('.env','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: node -p による .env 読み取りを deny する" {
+	run run_guard "node -p \"require('fs').readFileSync('.env').toString()\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: node --eval による .env 読み取りを deny する" {
+	run run_guard "node --eval \"process.stdout.write(require('fs').readFileSync('.env','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: node -e による秘密鍵（.ssh/id_rsa）読み取りを deny する" {
+	run run_guard "node -e 'console.log(require(\"fs\").readFileSync(process.env.HOME+\"/.ssh/id_rsa\",\"utf8\"))'"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: perl -ne による .env 読み取りを deny する" {
+	run run_guard "perl -ne 'print' .env"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: perl -0777 -e による .env 読み取りを deny する" {
+	run run_guard "perl -0777 -e 'print <>' .env"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: ruby -e による .env 読み取りを deny する" {
+	run run_guard "ruby -e 'puts File.read(\".env\")'"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: 変数プレフィックス（F=.env）でも deny する" {
+	run run_guard "F=.env; python -c \"import os;print(open(os.environ['F']).read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: pathlib 経由の .env 読み取りを deny する" {
+	run run_guard "python -c \"import pathlib;print(pathlib.Path('.env').read_text())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: shutil 経由の .env 読み取りを deny する" {
+	run run_guard "python -c \"import shutil,sys;shutil.copyfileobj(open('.env'),sys.stdout)\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: 結果をリダイレクト退避しても deny する" {
+	run run_guard "python -c \"print(open('.env').read())\" > /tmp/leak"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: python -c から AWS 認証情報を読むのを deny する" {
+	run run_guard "python -c \"print(open('/home/node/.aws/credentials').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: python -c から id_rsa を読むのを deny する" {
+	run run_guard "python -c \"print(open('id_rsa').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: python -c から .pem を読むのを deny する" {
+	run run_guard "python -c \"print(open('server.pem').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: node -e から .npmrc を読むのを deny する" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync('.npmrc','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: os.system('cat .env') の間接実行を deny する" {
+	run run_guard "python -c \"import os;os.system('cat .env')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: 一時ファイル生成→実行の2段構えも同一コマンドなら deny する" {
+	run run_guard "printf 'print(open(\".env\").read())' > /tmp/x.py; python /tmp/x.py"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ---- 層B: 正当な python / node コマンドは素通しする（過剰ブロックの回帰テスト） ----
+# ここが壊れると開発が止まる。層A（process.env サニタイズ）が効いていることの担保でもある。
+
+@test "層B許可: node -e で process.env.NODE_ENV を読む" {
+	run run_guard "node -e \"console.log(process.env.NODE_ENV)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: node -p で process.env.PORT を読む" {
+	run run_guard "node -p \"process.env.PORT\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: npm test" {
+	run run_guard "npm test"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: npx tsc --noEmit" {
+	run run_guard "npx tsc --noEmit"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: python -m pytest tests/" {
+	run run_guard "python -m pytest tests/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: python manage.py migrate" {
+	run run_guard "python manage.py migrate"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: node scripts/build.js" {
+	run run_guard "node scripts/build.js"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: os.environ を読む python ワンライナー" {
+	run run_guard "python -c \"import os;print(os.environ['PATH'])\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: python -c の短い計算ワンライナー" {
+	run run_guard "python -c \"print(1+1)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層B許可: node -e で package.json を読む" {
+	run run_guard "node -e \"console.log(require('./package.json').version)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ============================================================================
+# review 指摘の是正（2026-07-25）
+#
+# 根本原因: READERS のインタプリタ一覧と、#7 のサニタイズ一覧・#8 のパス判定が
+# **別々に育つ構造**になっており、片方だけ増やすと誤遮断か穴になる。
+# 以下は「インタプリタを足したことで正当なコードが誤遮断された」ケースの回帰テスト。
+# ============================================================================
+
+# ---- P1-a: .key/.pem/.p12/.pfx はプロパティアクセスと字面が同じ ----
+
+@test "P1-a: node -e の row.key（プロパティアクセス）を許可する" {
+	run run_guard "node -e \"console.log(row.key)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-a: node -e の require('./pkg.json').key を許可する" {
+	run run_guard "node -e \"console.log(require('./pkg.json').key)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-a: python3 -c の rec.key を許可する" {
+	run run_guard "python3 -c \"print(rec.key)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-a: python -c の obj.pfx を許可する" {
+	run run_guard "python -c \"print(obj.pfx)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-a: node -e の o.p12 を許可する" {
+	run run_guard "node -e \"console.log(o.p12)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-a: セミコロンが続く m.key も許可する" {
+	run run_guard "node -e \"const key = m.key; console.log(key)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ---- P1-a: 実ファイルとしての鍵は引き続き deny（緩めすぎていないことの担保） ----
+
+@test "P1-a回帰: cat server.key（行末）を deny する" {
+	run run_guard "cat server.key"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P1-a回帰: cp certs/server.pem（空白が続く）を deny する" {
+	run run_guard "cp certs/server.pem /tmp/"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P1-a回帰: head client.p12 を deny する" {
+	run run_guard "head -5 client.p12"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P1-a回帰: python -c の open('server.key')（引用符が続く）を deny する" {
+	run run_guard "python -c \"print(open('server.key').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P1-a回帰: node -e の readFileSync('certs/a.pem') を deny する" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync('certs/a.pem','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ---- P1-b: Bun.env / Deno.env は環境変数構文であってファイルではない ----
+
+@test "P1-b: bun -e の Bun.env.PORT を許可する" {
+	run run_guard "bun -e \"console.log(Bun.env.PORT)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "P1-b: deno eval の Deno.env.get('PORT') を許可する" {
+	run run_guard "deno eval \"console.log(Deno.env.get('PORT'))\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ---- P2-b: TypeScript ランナー（ts-node は前方境界が - を除くため node に当たらない） ----
+
+@test "P2-b: tsx -e による .env 読み取りを deny する" {
+	run run_guard "tsx -e \"console.log(require('fs').readFileSync('.env','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P2-b: ts-node -e による .env 読み取りを deny する" {
+	run run_guard "ts-node -e \"require('fs').readFileSync('.env')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ---- 層B×ラッパ: インラインペイロードならラッパ経由でも捕捉される ----
+
+@test "層B: uv run のインラインペイロードは deny する" {
+	run run_guard "uv run python -c \"print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: poetry run のインラインペイロードは deny する" {
+	run run_guard "poetry run python -c \"print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層B: バージョン付き python3.12 -c も deny する" {
+	run run_guard "python3.12 -c \"print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ---- P3: secrets/ の巻き添えは承知のうえの現状維持（挙動を固定する） ----
+# 暗号化済み secrets/ を運用するリポジトリでは日常操作が止まる。実運用で阻害されるなら
+# 除外を再検討する（判断の記録: docs/rules/security.md §静的検査の防御ライン）。
+
+@test "P3: git diff secrets/ は deny する（巻き添えを承知の fail-safe）" {
+	run run_guard "git diff secrets/"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "P3: grep -rn TODO secrets/ も deny する（同上）" {
+	run run_guard "grep -rn TODO secrets/"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ============================================================================
+# 層D: 秘密パス辞書の拡充（2026-07-25）
+# settings.json の Read deny 側にしか無い / 双方に無いパスが bash 経由で素通ししていた穴。
+# インタプリタ問題とは独立。
+# ============================================================================
+
+@test "層D: cat secrets/token.txt を deny する" {
+	run run_guard "cat secrets/token.txt"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: ネストした secrets/ ディレクトリも deny する" {
+	run run_guard "cat config/secrets/api.yml"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: head .git-credentials を deny する" {
+	run run_guard "head -1 .git-credentials"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat ~/.kube/config を deny する" {
+	run run_guard "cat ~/.kube/config"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat ~/.docker/config.json を deny する" {
+	run run_guard "cat ~/.docker/config.json"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat ~/.netrc を deny する" {
+	run run_guard "cat ~/.netrc"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat ~/.aws/config を deny する（credentials 限定からの拡張）" {
+	run run_guard "cat ~/.aws/config"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat ~/.aws/credentials は引き続き deny する（拡張による回帰がない）" {
+	run run_guard "cat ~/.aws/credentials"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat id_ecdsa を deny する（bash 側・Read deny と対象を揃えた鍵種）" {
+	run run_guard "cat ~/.ssh/id_ecdsa"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: cat id_dsa を deny する" {
+	run run_guard "cat id_dsa"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: id_rsa.pub（公開鍵）単体は許可する（除去対象・誤検知しない）" {
+	run run_guard "cat id_rsa.pub"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "層D: .ssh/ 配下は .pub でも deny する（ディレクトリ単位の fail-safe。従来からの挙動）" {
+	run run_guard "cat ~/.ssh/id_rsa.pub"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "層D: インタプリタ経由でも secrets/ を deny する（層B×層D）" {
+	run run_guard "python -c \"print(open('secrets/token.txt').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+# ============================================================================
+# 層C: R-002 共通所有ファイルへのインタプリタ経由の変更を deny（2026-07-25）
+# 読み取り／書き込みを静的に区別できないため、共起は読み取り目的でも deny（fail-safe）。
+# ============================================================================
+
+@test "R-002/層C: node -e の writeFileSync で CLAUDE.md を書き換えるのを deny する" {
+	run run_guard_svc "node -e \"require('fs').writeFileSync('CLAUDE.md','x')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/層C: python -c で docs/rules/ に書き込むのを deny する" {
+	run run_guard_svc "python -c \"open('docs/rules/git.md','w').write('x')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/層C: perl -pi -e による CLAUDE.md の破壊的置換を deny する" {
+	run run_guard_svc "perl -pi -e 's/a/b/' CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/層C: node -e の unlinkSync による CLAUDE.md 削除を deny する" {
+	run run_guard_svc "node -e \"require('fs').unlinkSync('CLAUDE.md')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/層C: 基盤リポ想定ではインタプリタ経由の編集を素通しする（編集元）" {
+	run run_guard_foundation "node -e \"require('fs').writeFileSync('CLAUDE.md','x')\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/層C: 共通所有でないファイルへのインタプリタ経由の書込は素通しする" {
+	run run_guard_svc "node -e \"require('fs').writeFileSync('README.md','x')\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/層C: サービス側のビルドスクリプト実行は素通しする（誤検知しない）" {
+	run run_guard_svc "node scripts/build.js && python -m pytest tests/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ============================================================================
+# 塞げていない抜け道の固定（deny されないことを「仕様」としてテストに書く）
+#
+# ⚠️ これらは「まだ直していないバグ」ではなく、静的検査では原理的に到達できない範囲である。
+#    インタプリタの引数はチューリング完全な言語であり、正規表現でファイル読み取り意図を
+#    判定することはできない。将来この節のテストが赤になったら、それは「穴が塞がった」のではなく
+#    「別の理由で過剰ブロックが起きた」可能性を先に疑うこと。
+#    脅威モデルと防御ラインの根拠: docs/rules/security.md §静的検査の防御ライン
+# ============================================================================
+
+@test "既知の限界: 文字列分割（'.e'+'nv'）による難読化は通過する" {
+	run run_guard "python -c \"print(open('.e'+'nv').read())\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: 配列 join による難読化は通過する" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync(['.e','nv'].join('')).toString())\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: chr() によるパス生成は通過する" {
+	run run_guard "python -c \"print(open(chr(46)+'env').read())\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: base64 デコードによるパス生成は通過する" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync(Buffer.from('LmVudg==','base64').toString()).toString())\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: ファイル実行（python script.py）は通過する（ファイル内容はフックから見えない）" {
+	run run_guard "python read_env.py"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: dotenv ライブラリ経由（パス無記載）は通過する" {
+	run run_guard "node -e \"require('dotenv').config();console.log(process.env)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: node -r dotenv/config によるプリロードは通過する" {
+	run run_guard "node -r dotenv/config -e \"console.log(process.env)\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: npm run 経由の間接実行は通過する（塞ぐと開発が成立しない）" {
+	run run_guard "npm run build"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# uv run / poetry run は「ラッパだから通る」のではない。インラインペイロード（-c/-e）なら
+# コマンド文字列に秘密パスが現れるので捕捉される（下の「層B×ラッパ」テストで固定）。
+# 通過するのは **ペイロードが別ファイルにある** 場合だけ。旧テストは `uv run python -c "print(2)"`
+# ＝秘密パスを含まない題材だったため、間接実行について何も固定していなかった（2026-07-25 review 指摘）。
+# なおこの手のテストは原理上「弱い」: ペイロードが不可視である以上、コマンド文字列だけを見れば
+# 素通しは自明である。ここで固定したいのは「ファイル実行は検査対象にならない」という設計事実。
+@test "既知の限界: uv run のファイル実行（ペイロードが別ファイル）は通過する" {
+	run run_guard "uv run scripts/read_env.py"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: poetry run のファイル実行は通過する" {
+	run run_guard "poetry run python scripts/read_env.py"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: py（Windows ランチャ）は未列挙のため通過する" {
+	run run_guard "py -c \"print(open('.env').read())\""
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "既知の限界: 環境変数経由の漏洩（env | grep）はこのガードの責務外" {
+	run run_guard "env | grep -i secret"
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }
