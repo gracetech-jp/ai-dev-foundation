@@ -190,11 +190,24 @@ if command -v jq >/dev/null 2>&1; then
 		<(jq -S "$base_minus_lock" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
 		report ".claude/settings.json の permissions が root ↔ profiles/_base で不一致（共通所有ロック deny 以外は同値必須。手動同期漏れ）"
 	fi
-	# ロック deny 自体の退化検出: _base が共通所有ロックを1件も持たないのは配布の退化（ADR-009）。
-	if ! jq -e ".permissions.deny | map(select(test(\"$common_lock_re\"))) | length > 0" \
-		"$ROOT/profiles/_base/.claude/settings.json" >/dev/null 2>&1; then
-		report "profiles/_base/.claude/settings.json に共通所有ファイルのロック deny がありません（ADR-009 の配布退化）"
-	fi
+	# ロック deny 自体の退化検出。「1件でもあれば緑」では大半が消えても素通りするため、
+	# 仕組みの根を成すコア5点の実在を個別に要求する（2026-07-25 是正。旧実装は length>0 のみ）。
+	# 挙げるのは「これが抜けたらロックの意味が失われる」ものに限る。追加時は理由を1行残すこと。
+	LOCK_CORE=(
+		"CLAUDE.md"                            # 共通ルールの本体
+		"docs/rules/**"                        # 共通ルールの詳細
+		".claude/settings.json"                # ロックの定義それ自体（自己防御）
+		".claude/scripts/guard-dangerous.sh"   # bash 経路の遮断本体（自己防御）
+		"scripts/sync-from-common.sh"          # 唯一の正規更新経路
+	)
+	for core in "${LOCK_CORE[@]}"; do
+		for verb in Write Edit; do
+			if ! jq -e --arg e "${verb}(${core})" '.permissions.deny | index($e)' \
+				"$ROOT/profiles/_base/.claude/settings.json" >/dev/null 2>&1; then
+				report "profiles/_base/.claude/settings.json の deny に '${verb}(${core})' がありません（ADR-009 ロックの退化）"
+			fi
+		done
+	done
 	# プロファイル層の settings.json（ask のスタック別絞り込み。2026-07-23 導入）は
 	# ask のみ _base と差分可。allow/deny/hooks の変更が _base に入ってもプロファイル複製に
 	# 反映されず配布が分岐する事故を、ここで機械検出する（複製のトレードオフの機械的な塞ぎ）。
@@ -208,6 +221,79 @@ if command -v jq >/dev/null 2>&1; then
 	done
 else
 	report "jq が無く settings.json の permissions 同期検査ができません（guard-dangerous.sh も jq 依存。導入必須）"
+fi
+
+echo "[audit] (7) 共通所有ロックの定義突合（guard 正規表現 ↔ 配布 deny ↔ manifest）..."
+# 共通所有ファイルの定義が guard-dangerous.sh の COMMON_OWNED・配布 settings.json の deny・
+# .backport-manifest に分かれてハードコードされており、片方だけ更新すると穴が開く（2026-07-25 review 指摘）。
+# 単一の正本を新設せず、機械的な突合で乖離を検出する方式を採る（正本化は配布経路の作り直しになるため）。
+if command -v jq >/dev/null 2>&1; then
+	GUARD=".claude/scripts/guard-dangerous.sh"
+	BASE_SET="$ROOT/profiles/_base/.claude/settings.json"
+	deny_write() { jq -r '.permissions.deny[] | select(startswith("Write(")) | ltrimstr("Write(") | rtrimstr(")")' "$BASE_SET"; }
+	# guard 側の正規表現はスクリプトから抜き出す（ここに書き写すと4箇所目の重複になるため）
+	guard_re="$(sed -n "s/^[[:space:]]*COMMON_OWNED='\(.*\)'$/\1/p" "$ROOT/$GUARD")"
+	if [ -z "$guard_re" ]; then
+		report "$GUARD から COMMON_OWNED 正規表現を抽出できません（定義形式が変わった可能性。突合が空回りする）"
+	else
+		# ① deny の各パスが guard の正規表現に必ず掛かること（settings に足して guard を忘れた穴の検出）
+		while IFS= read -r p; do
+			[ -n "$p" ] || continue
+			if ! printf '%s' "$p" | grep -qE "$guard_re"; then
+				report "共通所有ロックの乖離: deny の '$p' が $GUARD の COMMON_OWNED に掛かりません（bash 経路が素通し）"
+			fi
+		done < <(deny_write)
+	fi
+	# ② Write と Edit の対称性。片側だけ deny は、もう片方のツールで素通しになる穴。
+	if ! diff -q \
+		<(deny_write | sort) \
+		<(jq -r '.permissions.deny[] | select(startswith("Edit(")) | ltrimstr("Edit(") | rtrimstr(")")' "$BASE_SET" | sort) >/dev/null 2>&1; then
+		report "共通所有ロックの Write/Edit が非対称（片側だけ deny のパスがある＝もう片方のツールで編集できる）"
+	fi
+	# ③ .backport-manifest の配布対象が全てロックされていること。逆方向（deny ⊆ manifest）は課さない:
+	#    profiles/_base 由来の骨格（.claude/ 配下）はパスが 1:1 対応せずマニフェスト対象外＝手動同期のため
+	#    （docs/rules/backport.md 注1）。
+	if [ -f "$ROOT/.backport-manifest" ]; then
+		denied_paths="$(deny_write | sed 's/\*\*$//')"
+		while IFS= read -r line; do
+			line="${line%%#*}"; line="$(printf '%s' "$line" | tr -d '[:space:]')"
+			[ -n "$line" ] || continue
+			if ! printf '%s\n' "$denied_paths" | grep -qxF "$line"; then
+				report "共通所有ロックの乖離: .backport-manifest の '$line' が配布 deny にありません（配布はするがロックされない）"
+			fi
+		done < "$ROOT/.backport-manifest"
+	fi
+fi
+
+echo "[audit] (8) 基盤自身のゲート無効化検出..."
+# 基盤リポは「アプリコードが無い」を理由にゲートを空設定にしがちだが、配布するガードレール自身が
+# 基盤の機微面であり（R-001・R-002）、空設定＋機微面なし宣言では F2 も S4 も一度も走らない。
+# 2026-07-24〜25 に実際にこの状態で緑になっていたため、機械検出する（ADR-008「維持したもの」の担保）。
+empty_paths_re='^[[:space:]]*@?TIER_TRIPWIRE_PATHS=("")[[:space:]]'
+if grep -qE "$empty_paths_re" "$ROOT/Makefile"; then
+	report "Makefile の tier-tripwire が TIER_TRIPWIRE_PATHS 空で起動しています（基盤の機微面＝配布ガードレールが検査されません）"
+fi
+if [ -f "$ROOT/docs/requirements/.tier-tripwire-none" ]; then
+	report "基盤リポに docs/requirements/.tier-tripwire-none があります（Tierトリップワイヤ全体が正当スキップされ無効化されます）"
+fi
+
+echo "[audit] (9) 要件一覧（README）と要件ファイルの突合..."
+# docs/requirements/README.md の一覧表は手書きのため実ファイルとずれる（R-001 の status が
+# 長期間 draft のまま放置されていた。2026-07-25 是正）。ID と status の一致を機械強制する。
+REQ_README="$ROOT/docs/requirements/README.md"
+if [ -f "$REQ_README" ]; then
+	for rf in "$ROOT"/docs/requirements/R-*.md; do
+		[ -f "$rf" ] || continue
+		rid="$(sed -n 's/^id:[[:space:]]*//p' "$rf" | head -1)"
+		rstatus="$(sed -n 's/^status:[[:space:]]*//p' "$rf" | head -1)"
+		[ -n "$rid" ] || continue
+		row="$(grep -F "| $rid |" "$REQ_README" || true)"
+		if [ -z "$row" ]; then
+			report "要件一覧の漏れ: $rid が docs/requirements/README.md の表にありません"
+		elif ! printf '%s' "$row" | grep -qF "$rstatus"; then
+			report "要件一覧の乖離: $rid の status が README（表）と実ファイル（$rstatus）で不一致"
+		fi
+	done
 fi
 
 echo ""

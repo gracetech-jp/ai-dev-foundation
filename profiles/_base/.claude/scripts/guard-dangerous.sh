@@ -119,11 +119,22 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		if printf '%s' "$STRIPPED" | grep -qE ">[>|]?[[:space:]]*[^|;&<>]*$COMMON_OWNED"; then
 			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 		fi
-		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が共通所有ファイルと共起（過剰側=fail-safe）
-		if printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
-		   printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
-			deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
-		fi
+		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が共通所有ファイルと共起（過剰側=fail-safe）。
+		#    破壊的コマンド検査と同じセグメント単位で判定する。コマンド全体で1回だけ判定すると、
+		#    正規の骨格同期を1つ含めるだけでチェイン内の別の書き込みまで免除されてしまうため（2026-07-25 是正）。
+		#    例外: 基盤の profiles/_base/ を**コピー元の第1引数**に取る骨格同期だけを通す。
+		#    これはマニフェスト対象外の `.claude/` 等を更新する唯一の正規手順（docs/rules/backport.md §骨格は手動同期）で、
+		#    b) が無条件に塞ぐと正規の更新経路そのものが消える。コピー元位置に限定しているので、
+		#    末尾コメントや第2引数に profiles/_base/ を書き足して素通しさせる細工は成立しない。
+		skeleton_sync='^[[:space:]]*(cp|rsync|install)([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^[:space:]]*profiles/_base/'
+		while IFS= read -r seg; do
+			printf '%s' "$seg" | grep -qE "$COMMON_OWNED" || continue
+			printf '%s' "$seg" | grep -qE "$skeleton_sync" && continue
+			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
+			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
+				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
+			fi
+		done < <(printf '%s\n' "$STRIPPED" | awk '{gsub(/\|\||&&|[|;&]/, "\n"); print}')
 	fi
 fi
 

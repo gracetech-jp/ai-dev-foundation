@@ -70,6 +70,13 @@ git status && git diff
   マニフェスト対象外＝手動同期**（サービス側の配置とパスが 1:1 対応しないため。`.backport-manifest` 注1）。
   基盤側で骨格を変更したら、既存サービスの同パスへ手でコピーして揃える
   （root↔`profiles/_base` の複製ずれは基盤の監査が機械検出する）。
+  この手動コピーは共通所有ロックの**例外として通る**が、条件は「`cp`/`rsync`/`install` の
+  **コピー元（第1引数）が `profiles/_base/` 配下**であること」。コピー先だけに書いても通らない。
+
+  ```bash
+  # 例: 基盤の骨格をサービスへ手で揃える（この形だけがロックを通る）
+  cp ~/projects/ai-dev-foundation/profiles/_base/.claude/scripts/guard-dangerous.sh .claude/scripts/guard-dangerous.sh
+  ```
 
 ## いつ順輸入するか
 

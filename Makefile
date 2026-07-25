@@ -43,12 +43,15 @@ req-coverage:
 	 bash scripts/check-requirements-coverage.sh
 
 # Tierトリップワイヤ（Tier デスカレーションをコード実態から裏取り。詳細: docs/rules/tiers.md）。
-# 基盤 ai-dev-foundation は機微プロダクトコードを持たないため「機微面なし」を宣言する運用:
-# 空設定＋ docs/requirements/.tier-tripwire-none（コミット済みの明示宣言）で正当スキップになる。
-# 「実行しない」ではなく「実行して宣言でスキップ」にするのは、前提が変わって機微コードが
-# 入った時に宣言ファイルの削除だけで fail-closed へ戻せるようにするため（ADR-008 §維持したもの）。
+# 基盤 ai-dev-foundation はアプリの機微プロダクトコードを持たないが、**配布するガードレール自身**が
+# この基盤の機微面である（破壊的操作の遮断＝R-001、共通所有ファイルの封鎖＝R-002。ともに Tier-S・ratified）。
+# 空設定＋「機微面なし」宣言では F2 も S4 も一度も走らず ADR-008「維持したもの」と矛盾するため、
+# 機微パスを R-001・R-002 の paths の和集合として明示する（2026-07-25 是正）。
+# シンボルを空にするのは、基盤の機微面がファイル単位で確定しており、シンボル走査は統べる要件を
+# 持たないファイル（bats 等）を巻き込んで偽陽性を生むだけだから。サービス側は SERVICE.md 由来の値を渡す。
 tier-tripwire:
-	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \
+	@TIER_TRIPWIRE_PATHS='.claude/scripts/guard-dangerous.sh|.claude/settings.json|profiles/_base/.claude/scripts/guard-dangerous.sh|profiles/_base/.claude/settings.json|profiles/*/files/.claude/settings.json' \
+	 TIER_TRIPWIRE_SYMBOLS="" \
 	 bash scripts/check-tier-tripwire.sh
 
 # 整合性監査一式（詳細: docs/rules/consistency.md）

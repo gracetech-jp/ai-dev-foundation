@@ -74,3 +74,61 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[ "$status" -eq 1 ]
 	[[ "$output" == *"permissions が root ↔ profiles/_base で不一致"* ]]
 }
+
+# ---- 検査層(7): 共通所有ロックの定義突合（2026-07-25 追加） ----
+
+@test "赤: guard の COMMON_OWNED に無いパスを deny に足すと乖離で fail" {
+	make_sandbox
+	jq '.permissions.deny += ["Write(docs/newthing.md)", "Edit(docs/newthing.md)"]' \
+		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"共通所有ロックの乖離"*"docs/newthing.md"*"COMMON_OWNED に掛かりません"* ]]
+}
+
+@test "赤: deny の Write/Edit が非対称になると fail" {
+	make_sandbox
+	jq '.permissions.deny |= map(select(. != "Edit(CLAUDE.md)"))' \
+		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"Write/Edit が非対称"* ]]
+}
+
+@test "赤: manifest の配布対象がロックされていないと fail" {
+	make_sandbox
+	echo "scripts/unlocked-thing.sh" >> "$SB/.backport-manifest"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"共通所有ロックの乖離"*"scripts/unlocked-thing.sh"*"配布 deny にありません"* ]]
+}
+
+@test "赤: ロックのコア1件を deny から外すと退化検出で fail（旧 length>0 では素通りしていた）" {
+	make_sandbox
+	jq '.permissions.deny |= map(select(. != "Write(scripts/sync-from-common.sh)" and . != "Edit(scripts/sync-from-common.sh)"))' \
+		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"ロックの退化"*"scripts/sync-from-common.sh"* ]]
+}
+
+# ---- 検査層(8): 基盤自身のゲート無効化検出（2026-07-25 追加） ----
+
+@test "赤: 基盤の tier-tripwire を空設定に戻すと無効化検出で fail" {
+	make_sandbox
+	sed -i "s|@TIER_TRIPWIRE_PATHS='[^']*'|@TIER_TRIPWIRE_PATHS=\"\"|" "$SB/Makefile"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"TIER_TRIPWIRE_PATHS 空で起動"* ]]
+}
+
+@test "赤: 基盤に .tier-tripwire-none を置くと無効化検出で fail" {
+	make_sandbox
+	: > "$SB/docs/requirements/.tier-tripwire-none"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *".tier-tripwire-none があります"* ]]
+}

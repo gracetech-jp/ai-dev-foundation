@@ -185,3 +185,39 @@ decision_of() {
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }
+
+@test "R-002: サービス想定で profiles/_base を元にした骨格同期の cp は許可する（正規手順）" {
+	run run_guard_svc "cp ~/projects/ai-dev-foundation/profiles/_base/.claude/scripts/guard-dangerous.sh .claude/scripts/guard-dangerous.sh"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002: 骨格同期の例外は rsync でも効く" {
+	run run_guard_svc "rsync -a ../ai-dev-foundation/profiles/_base/.claude/skills/verify-request/ .claude/skills/verify-request/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002: 末尾コメントに profiles/_base を足しても例外は成立せず deny する" {
+	run run_guard_svc "cp /tmp/evil .claude/settings.json # profiles/_base/.claude/settings.json"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: 骨格同期の例外があってもリダイレクト書込は deny する" {
+	run run_guard_svc "cp ../ai-dev-foundation/profiles/_base/CLAUDE.md CLAUDE.md && echo x > docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: 骨格同期セグメントがあってもチェイン内の別の cp は deny する" {
+	run run_guard_svc "cp ../ai-dev-foundation/profiles/_base/CLAUDE.md CLAUDE.md && cp /tmp/evil scripts/pre-push"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: コピー先に profiles/_base を書いても例外は成立せず deny する" {
+	run run_guard_svc "cp /tmp/evil scripts/pre-push profiles/_base/"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}

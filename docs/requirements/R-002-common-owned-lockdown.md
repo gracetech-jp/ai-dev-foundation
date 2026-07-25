@@ -3,7 +3,7 @@ id: R-002
 title: 共通所有ファイルのサービス側編集封鎖（一方通行配布）
 tier: S
 status: ratified
-ratified_by: 大澤将平（2026-07-24 指示）
+ratified_by: LLM（ADR-009 の決定に基づき起票。draft を経ておらず、内容のユーザー確認は未実施）
 paths:
   - ".claude/scripts/guard-dangerous.sh"
   - "profiles/_base/.claude/scripts/guard-dangerous.sh"
