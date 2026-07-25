@@ -119,7 +119,11 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		if printf '%s' "$STRIPPED" | grep -qE ">[>|]?[[:space:]]*[^|;&<>]*$COMMON_OWNED"; then
 			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 		fi
-		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が共通所有ファイルと共起（過剰側=fail-safe）。
+		# b) 変更系コマンド（rm/tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が共通所有ファイルと共起（過剰側=fail-safe）。
+		#    rm は 2026-07-25 に追加（sumai-desk の申し送り。破壊的コマンド検査は rm -rf 等の再帰強制しか見ないため、
+		#    `rm CLAUDE.md` のような単純削除が素通ししていた。編集より影響が大きい経路が無防備だった）。
+		#    perl -pi / python -c / ln -sf 等のインタプリタ経由は意図的に列挙しない（コマンドを必要以上に
+		#    制限しない方針。2026-07-25 ユーザー判断。ここは列挙で塞ぐ設計であり網羅は目指さない）。
 		#    破壊的コマンド検査と同じセグメント単位で判定する。コマンド全体で1回だけ判定すると、
 		#    正規の骨格同期を1つ含めるだけでチェイン内の別の書き込みまで免除されてしまうため（2026-07-25 是正）。
 		#    例外: 基盤の profiles/_base/ を**コピー元の第1引数**に取る骨格同期だけを通す。
@@ -130,7 +134,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		while IFS= read -r seg; do
 			printf '%s' "$seg" | grep -qE "$COMMON_OWNED" || continue
 			printf '%s' "$seg" | grep -qE "$skeleton_sync" && continue
-			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
+			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(rm|tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
 			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
 				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 			fi

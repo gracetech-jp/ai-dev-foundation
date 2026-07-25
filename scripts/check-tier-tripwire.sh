@@ -10,6 +10,7 @@
 #   TIER_TRIPWIRE_PATHS   … 機微コードのパス glob（| 区切り）。共通リポは既定値を持たない。
 #   TIER_TRIPWIRE_SYMBOLS … パス名に現れない機微識別子の拡張正規表現（| で alternation 可）。
 #   TIER_TRIPWIRE_TEST_RE … test/fixture 判定の正規表現（任意。既定はスタック中立の一般形）。
+#   TIER_TRIPWIRE_SELF_RE … 機微パターンの定義元ファイル（Makefile 等）の除外正規表現（任意・既定は空）。
 #   TRIPWIRE_BASE         … 差分の基準（任意。既定は origin/main → HEAD~1 → 空ツリーの順で自動選択）。
 
 set -u
@@ -50,6 +51,13 @@ fi
 
 TEST_RE="${TIER_TRIPWIRE_TEST_RE:-(^|/)(tests?|fixtures?)/|(^|/)test_|_test\.|\.test\.}"
 
+# 機微パターンの定義元ファイル（自己言及の除外）。TIER_TRIPWIRE_SYMBOLS の値そのものを書いている
+# ファイル（Makefile 等）は、grep すれば当然パターンに一致するが機微コードではない。除外しないと
+# 定義元を触るたびに永久に赤になる。未設定なら何も除外しない（fail-closed 維持）。
+# *.md は is_docs が既に軽微扱いのため、通常ここに書くのは Makefile 等の非 docs だけでよい。
+# （2026-07-25 sumai-desk から基盤へ取り込み。ADR-009 以降、共通所有ファイルの改善は基盤で行う）
+SELF_RE="${TIER_TRIPWIRE_SELF_RE:-}"
+
 # ---- front-matter パーサ（check-requirements-coverage.sh と同仕様） ----
 fm_scalar() { # <file> <key>
 	awk -v key="$2" '
@@ -84,6 +92,7 @@ path_match() { # <file>
 }
 is_docs() { case "$1" in *.md) return 0 ;; docs/*|*/docs/*) return 0 ;; *) return 1 ;; esac; }
 is_test() { printf '%s' "$1" | grep -qE "$TEST_RE"; }
+is_self() { [ -n "$SELF_RE" ] && printf '%s' "$1" | grep -qE "$SELF_RE"; }
 
 # 統べる要件の探索：needs_s=1 なら ratified かつ tier==S、needs_s=0 なら ratified 全 tier。
 owning_req() { # <file> <needs_s>
@@ -158,6 +167,10 @@ if [ -n "$sens" ]; then
 		[ -n "$f" ] || continue
 		if is_docs "$f"; then
 			warn "機微パターンが docs に一致: $f（軽微）"
+			continue
+		fi
+		if is_self "$f"; then
+			warn "機微パターンが定義元ファイルに一致: $f（軽微。TIER_TRIPWIRE_SELF_RE で除外）"
 			continue
 		fi
 		if is_test "$f"; then

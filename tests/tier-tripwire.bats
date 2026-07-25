@@ -91,3 +91,25 @@ mkreq() { # <id> <tier> <status> <pathglob>
 	run tw
 	[ "$status" -eq 1 ]
 }
+
+@test "SELF_RE: 機微パターンの定義元ファイルは軽微扱いで緑（永久赤の回避）" {
+	printf 'TIER_TRIPWIRE_SYMBOLS=SECRETSYM\n' > "$FIX/Makefile"; commit
+	run env TIER_TRIPWIRE_PATHS='src/sensitive/**' TIER_TRIPWIRE_SYMBOLS='SECRETSYM' \
+		TIER_TRIPWIRE_SELF_RE='^Makefile$' TRIPWIRE_BASE="$BASE" bash "$SUT"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"定義元ファイルに一致"* ]]
+}
+
+@test "SELF_RE: 未設定なら定義元も除外されない（fail-closed 維持）" {
+	printf 'TIER_TRIPWIRE_SYMBOLS=SECRETSYM\n' > "$FIX/Makefile"; commit
+	run tw
+	[ "$status" -eq 1 ]
+}
+
+@test "SELF_RE: 除外は定義元だけで、機微コード本体は従来どおり赤" {
+	printf 'TIER_TRIPWIRE_SYMBOLS=SECRETSYM\n' > "$FIX/Makefile"
+	printf 'x SECRETSYM y\n' > "$FIX/src/util/b.txt"; commit
+	run env TIER_TRIPWIRE_PATHS='src/sensitive/**' TIER_TRIPWIRE_SYMBOLS='SECRETSYM' \
+		TIER_TRIPWIRE_SELF_RE='^Makefile$' TRIPWIRE_BASE="$BASE" bash "$SUT"
+	[ "$status" -eq 1 ]
+}

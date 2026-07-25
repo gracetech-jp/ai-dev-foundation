@@ -221,3 +221,21 @@ decision_of() {
 	[ "$status" -eq 0 ]
 	[ "$(decision_of "$output")" = "deny" ]
 }
+
+@test "R-002: サービス想定で共通所有ファイルの rm 削除を deny する（申し送り: 編集より影響が大きい）" {
+	run run_guard_svc "rm CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で共通スクリプトの rm 削除も deny する" {
+	run run_guard_svc "rm -v scripts/check-tier-tripwire.sh"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: 共通所有ファイルに触れないセグメントの rm は素通しする（誤検知しない）" {
+	run run_guard_svc "rm build/tmp.txt && cat docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
