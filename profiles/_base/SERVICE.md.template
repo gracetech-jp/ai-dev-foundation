@@ -79,8 +79,8 @@ make audit-all   # 整合性監査一式
 - `TIER_TRIPWIRE_PATHS`  … 機微コードのパス glob を `|` 区切りで列挙する。
 - `TIER_TRIPWIRE_SYMBOLS`… パス名に現れない機微識別子の拡張正規表現（`|` で alternation）。
 - 機微面が無いサービスは、両方を空にしたうえで `docs/requirements/.tier-tripwire-none` の
-  「機微面なし」宣言を確認する（**プロファイルによっては生成時に同梱済み**。無ければ人間 commit で
-  ratify する。いずれの場合も、リポジトリの初回 commit を人間が行うことで宣言が成立する）。
+  「機微面なし」宣言を確認する（**プロファイルによっては生成時に同梱済み**。無ければファイルを
+  作成してコミットすることで宣言が成立する）。
   機微を持つに至ったら本ファイルを削除し、機微パターンを定義する（fail-closed に戻る）。
   **未定義のまま（`Makefile` の該当行を消す）は緑にならず `exit 2`（fail-closed）**。
 
@@ -92,4 +92,4 @@ make audit-all   # 整合性監査一式
 
 > 判定：機微パス/シンボルに触れる変更は、統べる ratified **Tier-S 要件**（`docs/requirements/`）が
 > 必要。無ければ、または統べる要件が tier<S なら赤（申告デスカレーションの裏取り）。
-> 正当な例外は `.tier-tripwire-allow`（人間署名・CODEOWNERS 保護）に登録して警告へ緩和する。
+> 正当な例外は `.tier-tripwire-allow` に理由コメント付きで登録して警告へ緩和する。

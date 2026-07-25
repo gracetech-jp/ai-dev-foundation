@@ -28,20 +28,20 @@ coverage:
 	@echo "         例: bash scripts/check-coverage.sh <測定カバレッジ%>"
 	@exit 3
 
-# 要件↔テストのカバレッジ・妥当性・改変検知（詳細: docs/rules/requirements.md / testing.md）。
+# 要件↔テストのカバレッジ検証（詳細: docs/rules/requirements.md / testing.md）。
 # マーカー走査設定はスタック依存。このサービスの構成に合わせて env を設定して実行する。
 # 未設定のまま実行すると check-requirements-coverage.sh が exit 2（fail-closed）で失敗する。
 req-coverage:
 	@echo "[req-coverage] TODO: このサービスのマーカー走査設定を行ってください（docs/rules/testing.md / requirements.md）。"
 	@echo "         設定して実行: REQ_TEST_PATHS=<テストパス> REQ_MARKER_RE=<reqマーカー正規表現> \\"
-	@echo "                       [ADV_MARKER_RE=<advマーカー正規表現>] [REQ_COMMENT_PREFIX=<行頭コメント記法>] \\"
+	@echo "                       [ADV_MARKER_RE=<advマーカー正規表現>] \\"
 	@echo "                       bash scripts/check-requirements-coverage.sh"
 	@exit 1
 
 # Tierトリップワイヤ（詳細: docs/rules/tiers.md / SERVICE.md「Tierトリップワイヤ設定」）。
 # 機微パターンをこのサービスの値に設定する（TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS）。
-# 空のまま かつ docs/requirements/.tier-tripwire-none 未 ratify は exit 2（fail-closed）。
-# 機微面が無いサービスは .tier-tripwire-none を人間 commit で ratify して明示宣言する。
+# 空のまま かつ docs/requirements/.tier-tripwire-none 不在は exit 2（fail-closed）。
+# 機微面が無いサービスは .tier-tripwire-none をコミットして明示宣言する。
 tier-tripwire:
 	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \
 	 bash scripts/check-tier-tripwire.sh

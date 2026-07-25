@@ -105,10 +105,8 @@ cp "$BASE/docs/service-rules/"*.md "${TARGET}/docs/service-rules/"
 # ADR（意思決定記録）の運用の型を配布（テンプレート＋運用ガイド。基盤固有のADR本体は配らない）
 cp "$BASE/docs/decisions/"*.md "${TARGET}/docs/decisions/"
 
-# 要件トレーサビリティの雛形（要件テンプレ・INVARIANTS・README）を配布（実要件は各サービスが人間批准で後付け）
+# 要件トレーサビリティの雛形（要件テンプレ等）を配布（実要件は各サービスが後付け。批准レス運用: ADR-008）
 cp "$BASE/docs/requirements/"*.md "${TARGET}/docs/requirements/"
-# CODEOWNERS（要件パスのレビュー必須。所有者はプレースホルダ＝生成後に人間が実ハンドルへ記入する）
-cp "$BASE/.github/CODEOWNERS.template" "${TARGET}/.github/CODEOWNERS"
 
 # 品質ゲート一式（Makefile契約・フック・監査雛形・カバレッジ機構・CIワークフロー）を配布
 cp "$BASE/Makefile" "${TARGET}/Makefile"
@@ -127,11 +125,10 @@ chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push" \
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp "$BASE/.github/workflows/ci.yml" "${TARGET}/.github/workflows/ci.yml"
 
-# 逆輸入（サービス→共通）・順輸入（共通→サービス）プロセス一式を新規サービスへ配布
-cp "$ROOT/scripts/backport-to-common.sh" "${TARGET}/scripts/"
+# 順輸入（共通→サービス）ツールを配布（逆輸入は廃止・配布は一方通行。ADR-009。
+# マニフェストは共通リポ側が正のためサービスへは配らない）
 cp "$ROOT/scripts/sync-from-common.sh" "${TARGET}/scripts/"
-cp "$ROOT/.backport-manifest" "${TARGET}/.backport-manifest"
-chmod +x "${TARGET}/scripts/backport-to-common.sh" "${TARGET}/scripts/sync-from-common.sh"
+chmod +x "${TARGET}/scripts/sync-from-common.sh"
 
 # SERVICE.mdをテンプレートからコピー
 cp "$BASE/SERVICE.md.template" "${TARGET}/SERVICE.md"
@@ -217,11 +214,9 @@ echo ""
 echo "作成されたファイル:"
 find "${TARGET}" -not -path '*/.claude/*' | sort
 echo ""
-echo "▼ 生成後に人間が対応する項目（要件トレーサビリティ）:"
-echo "  - .github/CODEOWNERS の既定所有者（@shohei-osawa）を確認し、共同開発者・チームがいる場合は行を追加する"
-echo "  - 要件パスのブランチ保護を設定する（docs/rules/git.md「要件パスのブランチ保護」チェックリスト）"
-echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none を人間 commit で宣言する"
-echo "  - 既存仕様の要件化は extract-requirements スキルで下書き→人間批准（docs/requirements/ は人間のみ）"
+echo "▼ 生成後に対応する項目（要件トレーサビリティ）:"
+echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none をコミットして宣言する"
+echo "  - 既存仕様の要件化は extract-requirements スキルで docs/requirements/ に起こす（批准レス運用: ADR-008）"
 echo ""
 
 # エディタは自動で開かない（bats テスト等からの実行でウィンドウが開いて邪魔になるため。2026-07-22）

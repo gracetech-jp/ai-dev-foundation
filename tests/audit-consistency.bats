@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# audit-consistency.sh 検査層(7)「配布複製の同期検査（root ↔ profiles/_base）」の回帰。
+# audit-consistency.sh 検査層(6)「配布複製の同期検査（root ↔ profiles/_base）」の回帰。
 # 実リポの working tree を汚さないため、監査対象一式をサンドボックスへ複製してから破壊する。
 
 setup() {
@@ -10,8 +10,8 @@ setup() {
 make_sandbox() {
 	SB="$BATS_TEST_TMPDIR/sb"
 	mkdir -p "$SB/.claude" "$SB/docs"
-	for item in Makefile CLAUDE.md COMMAND.md .backport-manifest \
-	            .req-coverage-baseline .tier-tripwire-allow scripts profiles .github .devcontainer; do
+	for item in Makefile CLAUDE.md .backport-manifest \
+	            .req-coverage-baseline scripts profiles .github .devcontainer; do
 		cp -a "$REPO/$item" "$SB/$item"
 	done
 	cp -a "$REPO/docs/rules" "$REPO/docs/requirements" "$REPO/docs/service-rules" "$REPO/docs/decisions" "$SB/docs/"
@@ -31,7 +31,7 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 
 @test "緑: settings.json は permissions が同値なら root 固有キー（model等）の差を許容する" {
 	make_sandbox
-	# root 側にのみ存在するローカル固有キーを追加しても層(7)は赤にならない
+	# root 側にのみ存在するローカル固有キーを追加しても層(6)は赤にならない
 	jq '. + {theme: "light", model: "dummy"}' "$SB/.claude/settings.json" > "$SB/.claude/settings.json.tmp"
 	mv "$SB/.claude/settings.json.tmp" "$SB/.claude/settings.json"
 	run audit

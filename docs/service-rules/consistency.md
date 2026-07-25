@@ -2,7 +2,7 @@
 
 > このファイルは**このリポジトリ（基盤リポ自身）に固有**。原則・枠組みは共通の `docs/rules/consistency.md` を正とし、
 > ここには基盤リポの実体に依存する**具体コマンド・監査スクリプトの中身・層の呼称**だけを書く。
-> 逆輸入の対象外（`docs/service-rules/` はリポに閉じる。詳細: `docs/rules/backport.md`）。
+> 配布の対象外（`docs/service-rules/` はリポに閉じる。詳細: `docs/rules/backport.md`）。
 > 基盤リポは自らのルールを dogfood するため、サービスと同じ型でこのファイルを持つ（配布雛形: `profiles/_base/docs/service-rules/consistency.md`）。
 
 ---
@@ -31,7 +31,7 @@
 
 - **`scripts/audit-consistency.sh` の検査層**: (1) ドキュメントのリンク切れ／(2) Makefile ターゲット契約／
   (3) 新サービスへの配布漏れ・トレーサビリティ配線退化・基盤CI存在／(4) リネーム残渣（データ駆動）／
-  (5) Dockerfile の jq 二重管理／(6) 要件パスのブランチ保護確認／(7) 配布複製の root↔`profiles/_base` 同期。
+  (5) Dockerfile の jq 二重管理／(6) 配布複製の root↔`profiles/_base` 同期。
 - **モデル↔マイグレーション drift 検出**: 該当なし（DB非依存）。
 - **テスト実行**: `make test` が `bash -n`（全配布シェル資産）と `bats tests/`
   （guard-dangerous / new-service / req-coverage / tier-tripwire / audit-consistency）を実行する。
@@ -49,6 +49,7 @@
 
 - 配布漏れ: `scripts/new-service.sh` の配布物と `docs/rules/repo-layout.md` の必須構成の突合（検査層(3)）。
 - 配布複製の同期: `.claude/`（guard・session-start・skills・agents・settings の permissions）が
-  root と `profiles/_base/` で一致すること（検査層(7)。`.backport-manifest` 注1の手動同期を機械検証）。
-- profiles の骨格改善はサービス側から機械還流されない（手動同期）。`profiles/` を変更したら該当プロファイルの
+  root と `profiles/_base/` で一致すること（検査層(6)。`.backport-manifest` 注1の手動同期を機械検証。
+  共通所有ロックの deny は _base 側にのみ置く配布分岐として検査側で差し引く。ADR-009）。
+- profiles の骨格を変更したら既存サービスへは手動同期で配る（一方通行。ADR-009）。該当プロファイルの
   bats（`tests/new-service.bats`）が緑であることを確認する。

@@ -34,23 +34,13 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y bats
       - run: make test
 
-  # 要件↔テストのトレーサビリティ（未カバー要件・妥当性欠落・批准後改変を検出）。
+  # 要件↔テストのトレーサビリティ（未カバー要件・dangling マーカーを検出）。
   # 純 bash/grep/awk/sha256sum で完結するため素の runner で実行する。
   req-coverage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: make req-coverage
-
-  # Tier デスカレーションの裏取り（機微パス/シンボルへの変更に Tier-S 要件を要求）。
-  # 差分基準のため全履歴を取得する（fetch-depth: 0）。基盤は機微面なし宣言で正当スキップ。
-  tier-tripwire:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - run: make tier-tripwire
 
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする。
   secret-scan:

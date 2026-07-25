@@ -101,22 +101,29 @@ if printf '%s' "$SECRETSCAN" | grep -qiE "$READERS" &&
 	deny "鍵・認証情報ファイルのbash経由読み取りを検知したためブロックしました"
 fi
 
-# ---- 要件ディレクトリ(docs/requirements/)への bash 経由書き込み遮断（G3・補助的多層防御） ----
-# 【位置づけ・過信禁止】要件のLLM編集封鎖の *主防壁* は CODEOWNERS＋サーバ側ブランチ保護（レビュー必須化）。
-#   settings.json の Write/Edit(docs/requirements/**) deny は Claude のツール経由の書き込みを塞ぐ。
-#   本ブロックはそれらをすり抜ける *bash 経由* の書き込み（リダイレクト・tee・sed -i・cp/mv 先）を
-#   決定論的に塞ぐ補助線にすぎない。denylist は本質的に穴が残る（例: interpreter の open("w")）ため、
-#   主防壁の CODEOWNERS＋ブランチ保護を必ず併用すること（詳細: docs/rules/git.md）。
-REQ_WRITE_PATH='docs/requirements/'
-if printf '%s' "$STRIPPED" | grep -qF "$REQ_WRITE_PATH"; then
-	# a) リダイレクト（> / >>）先が docs/requirements/
-	if printf '%s' "$STRIPPED" | grep -qE '>>?[[:space:]]*[^|;&<>]*docs/requirements/'; then
-		deny "要件ディレクトリ(docs/requirements/)へのリダイレクト書き込みを検知したためブロックしました（要件は人間批准のみ。G3）"
-	fi
-	# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が docs/requirements/ と共起（過剰側=fail-safe）
-	if printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
-	   printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
-		deny "要件ディレクトリ(docs/requirements/)への bash 経由の書き込み/変更を検知したためブロックしました（要件は人間批准のみ。G3）"
+# （2026-07-24 批准レス化・ADR-008: 要件ディレクトリ docs/requirements/ への書き込み遮断（旧G3）は撤去。
+#   要件は LLM も直接編集できる。トレーサビリティの担保は req-coverage / tier-tripwire の機械ゲートで行う）
+
+# ---- 共通所有ファイルへの bash 経由書き込み遮断（ADR-009: サービス側は編集・還流禁止、順輸入のみ） ----
+# 対象は「新規サービス構築後、仕組みを疑わなければ触ることがない」共通所有ファイルに限る。
+# サービス側で編集が前提の箇所（SERVICE.md・Makefile 実装・audit-consistency.sh 肉付け・
+# docs/requirements/・ci.yml・.gitignore 追記等）は対象外。settings.json の deny と対で機械強制する。
+# 基盤リポ ai-dev-foundation 自身は共通所有ファイルの編集元のため対象外
+# （profiles/_base/ の存在で決定論的に判定。プロジェクトルートは CLAUDE_PROJECT_DIR、無ければ cwd）。
+# 更新の正規経路は sync-from-common.sh の実行のみ（スクリプト起動コマンドは書込系と共起しないため素通し）。
+if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
+	COMMON_OWNED='(CLAUDE\.md|docs/rules/|\.claude/settings\.json|\.claude/scripts/(guard-dangerous|session-start-rules)\.sh|\.claude/skills/(extract-requirements|verify-request)/|\.claude/agents/(consistency-auditor|security-reviewer)\.md|scripts/(pre-push|commit-msg|check-coverage\.sh|check-requirements-coverage\.sh|check-tier-tripwire\.sh|sync-from-common\.sh))'
+	if printf '%s' "$STRIPPED" | grep -qE "$COMMON_OWNED"; then
+		# a) リダイレクト（> / >> / >|）先が共通所有ファイル
+		#    >| は noclobber 無効化つき上書き。`[^|...]` が直後の | でパイプと誤認し素通ししていたため明示的に許容する。
+		if printf '%s' "$STRIPPED" | grep -qE ">[>|]?[[:space:]]*[^|;&<>]*$COMMON_OWNED"; then
+			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
+		fi
+		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i）が共通所有ファイルと共起（過剰側=fail-safe）
+		if printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync)([^[:alnum:]_]|$)' ||
+		   printf '%s' "$STRIPPED" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
+			deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
+		fi
 	fi
 fi
 

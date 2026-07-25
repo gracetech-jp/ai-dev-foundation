@@ -2,6 +2,8 @@
 # check-requirements-coverage.sh の負例回帰（恒久登録）。CI の bats で守る。
 # フィクスチャは抽象トークンのみ（マーカーは REQMARK/ADVMARK、ID は R-1xx）。
 # 固有ドメイン語・基盤の @req マーカー表記は使わない（基盤の tests/ スキャンを汚染しないため）。
+# 2026-07-24 批准レス化（ADR-008）: 人間批准チェック（tests_ratified_by/sha）は廃止。
+# 旧フィールドが無視されることを負例回帰として恒久登録する。
 
 setup() {
 	FIX="$BATS_TEST_TMPDIR/fix"
@@ -15,18 +17,23 @@ rc() {
 	REQ_TEST_PATHS=tests \
 	REQ_MARKER_RE='REQMARK[[:space:]]+R-[0-9]+' \
 	ADV_MARKER_RE='ADVMARK[[:space:]]+R-[0-9]+' \
-	REQ_COMMENT_PREFIX='#' \
 	bash "$SUT" "$@"
 }
 
-@test "緑: S要件が被覆・妥当性批准・sha一致・adversarial有 → exit 0" {
+@test "緑: S要件が被覆・adversarial有 → exit 0（批准フィールド不要）" {
 	printf '%s\n' 'REQMARK R-100' 'ADVMARK R-100' 'body' > "$FIX/tests/t_100.txt"
-	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' 'ratified_by: h' \
-		'tests_ratified_by: h' 'tests_ratified_sha: PENDING' \
-		'test_assets:' '  - "tests/t_100.txt"' 'negative_space:' '  - "x"' '---' \
+	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' \
+		'negative_space:' '  - "x"' '---' \
 		> "$FIX/docs/requirements/R-100.md"
-	sha="$(rc --sha R-100)"
-	sed -i "s/PENDING/$sha/" "$FIX/docs/requirements/R-100.md"
+	run rc
+	[ "$status" -eq 0 ]
+}
+
+@test "廃止回帰: 旧 tests_ratified_by/sha が残っていても無視される → exit 0（ADR-008）" {
+	printf '%s\n' 'REQMARK R-100' 'ADVMARK R-100' 'body' > "$FIX/tests/t.txt"
+	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' 'tests_ratified_by: h' \
+		'tests_ratified_sha: deadbeef' 'negative_space:' '  - "x"' '---' \
+		> "$FIX/docs/requirements/R-100.md"
 	run rc
 	[ "$status" -eq 0 ]
 }
@@ -44,18 +51,15 @@ rc() {
 	[ "$status" -eq 1 ]
 }
 
-@test "F1: 批准後にテスト改変(sha不一致) → 赤(exit 1)" {
-	printf '%s\n' 'REQMARK R-100' 'ADVMARK R-100' 'body' > "$FIX/tests/t.txt"
-	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' 'tests_ratified_by: h' \
-		'tests_ratified_sha: deadbeef' 'test_assets:' '  - "tests/t.txt"' 'negative_space:' '  - "x"' '---' \
-		> "$FIX/docs/requirements/R-100.md"
+@test "dangling: draft のままの要件を指すマーカー → 赤(exit 1)" {
+	printf '%s\n' 'REQMARK R-100' > "$FIX/tests/t.txt"
+	printf '%s\n' '---' 'id: R-100' 'tier: B' 'status: draft' '---' > "$FIX/docs/requirements/R-100.md"
 	run rc
 	[ "$status" -eq 1 ]
-	[[ "$output" == *F1* ]]
 }
 
 @test "S/A未カバー(マーカー0) → 赤(exit 1)" {
-	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' 'tests_ratified_by: h' 'tests_ratified_sha: x' '---' \
+	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' '---' \
 		> "$FIX/docs/requirements/R-100.md"
 	run rc
 	[ "$status" -eq 1 ]
@@ -63,11 +67,9 @@ rc() {
 
 @test "G4: negative_space有・adversarial無 → 赤(exit 1)" {
 	printf '%s\n' 'REQMARK R-100' 'body' > "$FIX/tests/t.txt"
-	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' 'tests_ratified_by: h' \
-		'tests_ratified_sha: PENDING' 'test_assets:' '  - "tests/t.txt"' 'negative_space:' '  - "x"' '---' \
+	printf '%s\n' '---' 'id: R-100' 'tier: S' 'status: ratified' \
+		'negative_space:' '  - "x"' '---' \
 		> "$FIX/docs/requirements/R-100.md"
-	sha="$(rc --sha R-100)"
-	sed -i "s/PENDING/$sha/" "$FIX/docs/requirements/R-100.md"
 	run rc
 	[ "$status" -eq 1 ]
 	[[ "$output" == *adversarial* ]]

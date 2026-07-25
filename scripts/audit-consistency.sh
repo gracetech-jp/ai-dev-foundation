@@ -65,13 +65,13 @@ if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; th
 		fi
 	done
 fi
-# 品質ゲート・逆輸入プロセス・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
+# 品質ゲート・順輸入ツール・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
 # （配布行の削除・退化を検出）。特に guard-dangerous.sh / settings.json / session-start-rules.sh は
 # 安全機構の配布そのものであり、退化すると新サービスがガード無しで生まれるため必ず含める。
 # ディレクトリ単位で配布されるもの（skills/agents/service-rules/decisions）は basename がディレクトリ名。
 for req in \
 	scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
-	scripts/backport-to-common.sh scripts/sync-from-common.sh .backport-manifest \
+	scripts/sync-from-common.sh \
 	profiles/_base/Makefile profiles/_base/.github/workflows/ci.yml profiles/_base/.editorconfig profiles/_base/.coverage-floor \
 	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
 	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
@@ -79,7 +79,7 @@ for req in \
 	profiles/_base/gitignore.template profiles/_base/.env.example \
 	profiles/_base/SERVICE.md.template profiles/_base/README.md.template \
 	scripts/check-requirements-coverage.sh scripts/check-tier-tripwire.sh \
-	profiles/_base/docs/requirements profiles/_base/.github/CODEOWNERS.template \
+	profiles/_base/docs/requirements \
 	profiles/_base/.req-coverage-baseline profiles/_base/.tier-tripwire-allow \
 	profiles/_base/docs/service-rules profiles/_base/docs/decisions; do
 	base="$(basename "$req")"
@@ -140,18 +140,10 @@ for df in "$ROOT"/profiles/*/files/.devcontainer/Dockerfile; do
 	fi
 done
 
-echo "[audit] (6) CODEOWNERS 検査（要件パスのレビュー必須化。docs/rules/git.md）..."
-# CODEOWNERS の存在と docs/requirements/ 所有者は必須（ファイル欠落は fail）。
-if [ ! -f "$ROOT/.github/CODEOWNERS" ]; then
-	report ".github/CODEOWNERS がありません（要件パスのレビュー必須化。docs/rules/git.md）"
-elif ! grep -q 'docs/requirements/' "$ROOT/.github/CODEOWNERS"; then
-	report ".github/CODEOWNERS に docs/requirements/ の所有者がありません（要件パスが未保護）"
-fi
-# サーバ側ブランチ保護の API 確認は行わない（solo・ブランチ保護未導入の間は認識済みの借金であり、
-# 毎push の⚠警告が空回りしていたため 2026-07-23 に撤去）。フェーズ切替（開発者2人以上 or 初回リリース）で
-# ブランチ保護を有効化する際、docs/rules/git.md のチェックリストに従い API 確認をここへ再追加する。
+# （旧(6) CODEOWNERS 検査は 2026-07-24 の批准レス化（ADR-008）で撤去。要件パスの人間レビュー必須化
+#   そのものを廃止したため。チーム化でレビュー運用を再導入する場合は ADR-008 を見直して復活させる）
 
-echo "[audit] (7) 配布複製の同期検査（root ↔ profiles/_base）..."
+echo "[audit] (6) 配布複製の同期検査（root ↔ profiles/_base）..."
 # guard-dangerous.sh / session-start-rules.sh / skills / agents は root と profiles/_base の両方に複製配置され、
 # 機械還流の対象外＝手動同期（.backport-manifest 注1）。同期漏れは新規サービスだけが古いガードで生まれる
 # 「サイレント分岐」になるため、複製ペアの diff 一致を機械強制する（2026-07-22 棚卸しで同期保証の空白として検出）。
@@ -186,12 +178,22 @@ done < <(
 )
 # settings.json は root にのみローカル固有キー（model/theme/通知フック等）があるため全文一致は課さず、
 # 配布の本体である permissions ブロックのみを正規化（キー順・配列内順序を吸収）して比較する。
+# 共通所有ファイルのロック deny（ADR-009: CLAUDE.md・docs/rules/ 等のサービス側編集禁止）は
+# _base（配布側）にのみ置く。基盤リポ自身は共通所有ファイルの編集元なので root には置かない＝
+# 比較時に _base 側から差し引いてから照合する（この配布分岐は意図的で、ここが差分の正の定義）。
 if command -v jq >/dev/null 2>&1; then
 	norm_perms='.permissions | with_entries(.value |= sort)'
+	common_lock_re='^(Write|Edit)\\((CLAUDE\\.md|docs/rules/.*|\\.claude/(settings\\.json|scripts/.*|skills/(extract-requirements|verify-request)/.*|agents/(consistency-auditor|security-reviewer)\\.md)|scripts/(pre-push|commit-msg|check-coverage\\.sh|check-requirements-coverage\\.sh|check-tier-tripwire\\.sh|sync-from-common\\.sh))\\)$'
+	base_minus_lock=".permissions | .deny |= map(select(test(\"$common_lock_re\") | not)) | with_entries(.value |= sort)"
 	if ! diff -q \
 		<(jq -S "$norm_perms" "$ROOT/.claude/settings.json") \
-		<(jq -S "$norm_perms" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
-		report ".claude/settings.json の permissions が root ↔ profiles/_base で不一致（手動同期漏れ）"
+		<(jq -S "$base_minus_lock" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
+		report ".claude/settings.json の permissions が root ↔ profiles/_base で不一致（共通所有ロック deny 以外は同値必須。手動同期漏れ）"
+	fi
+	# ロック deny 自体の退化検出: _base が共通所有ロックを1件も持たないのは配布の退化（ADR-009）。
+	if ! jq -e ".permissions.deny | map(select(test(\"$common_lock_re\"))) | length > 0" \
+		"$ROOT/profiles/_base/.claude/settings.json" >/dev/null 2>&1; then
+		report "profiles/_base/.claude/settings.json に共通所有ファイルのロック deny がありません（ADR-009 の配布退化）"
 	fi
 	# プロファイル層の settings.json（ask のスタック別絞り込み。2026-07-23 導入）は
 	# ask のみ _base と差分可。allow/deny/hooks の変更が _base に入ってもプロファイル複製に

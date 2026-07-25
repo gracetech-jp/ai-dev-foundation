@@ -29,7 +29,7 @@
 
 ## 要件トレーサビリティ（要件↔テストの紐づけ）
 
-要件（`docs/requirements/`）とテストをマーカーで紐づける。詳細な要件の形式・批准・ハッシュ規約は
+要件（`docs/requirements/`）とテストをマーカーで紐づける。詳細な要件の形式は
 `docs/rules/requirements.md` を正とする。ここではテスト側のマーカー規約のみを定める。
 
 - **マーカー記法**：テストに要件IDのマーカーを付す。
@@ -40,9 +40,9 @@
   **`SERVICE.md` で定義**する（共通リポは中立＝既定の記法を強制しない。例: bats のサービスは
   `# @req: R-xxx` のようなコメントマーカーを用いる）。
 - **マーカーは「紐づけの主張」であって「検証の妥当性」ではない**。実装者はハッピーパスしか見ない
-  テストにもマーカーを貼れてしまう。ゆえに **Tier S/A は `tests_ratified_by`（要件↔テストの妥当性を
-  人間が批准した証跡）を必須**とし、マーカーの存在だけでは緑にしない（`docs/rules/requirements.md` §4）。
-- **adversarial テストは実装LLMに生成・マーカー付与させない**（人間執筆、または実装とは別コンテキストの
-  モデルが要件文面から逆生成し人間レビューを経たもの。`docs/rules/requirements.md` §6）。
-- 未カバー要件・妥当性欠落・批准後のテスト改変は `scripts/check-requirements-coverage.sh` が
+  テストにもマーカーを貼れてしまう。妥当性は adversarial テスト（S/A の negative_space に必須。G4）で
+  補強する（旧 `tests_ratified_by` の人間批准は 2026-07-24 の批准レス化（ADR-008）で廃止）。
+- **adversarial テストは、実装した同一コンテキストで生成しない**ことを推奨する（要件文面だけを入力に
+  した別コンテキストで逆生成する。骨抜き防止。`docs/rules/requirements.md` §6）。
+- 未カバー要件・dangling マーカーは `scripts/check-requirements-coverage.sh` が
   CI と push 前で機械検出する（`make req-coverage`）。

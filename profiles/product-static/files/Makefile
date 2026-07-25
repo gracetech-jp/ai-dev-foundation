@@ -52,13 +52,12 @@ audit-deps:
 		echo "[audit-deps] ⚠ package.json / pnpm-lock.yaml がありません（依存未導入）。skip（display-green）"; \
 	fi
 
-# 要件↔テストのカバレッジ・妥当性・改変検知（docs/rules/requirements.md / testing.md）。
+# 要件↔テストのカバレッジ検証（docs/rules/requirements.md / testing.md）。
 # JS系のマーカー走査デフォルト（display-green: 生成直後は要件0件で緑。要件を持った時点から実検証される）。
 req-coverage:
 	@REQ_TEST_PATHS="tests src" \
 	 REQ_MARKER_RE='@req:?[[:space:]]*R-[0-9]+' \
 	 ADV_MARKER_RE='@adversarial:?[[:space:]]*R-[0-9]+' \
-	 REQ_COMMENT_PREFIX='//' \
 	 bash scripts/check-requirements-coverage.sh
 
 # Tierトリップワイヤ（docs/rules/tiers.md / SERVICE.md「Tierトリップワイヤ設定」）。

@@ -74,7 +74,7 @@
 ## 📝 ドキュメント
 
 - 新機能追加時は`docs/`配下に仕様書（設計メモ）を作成する。**仕様書はLLMが生成・更新してよいが、要件の正本ではない**
-- **要件の正本は `docs/requirements/`（人間批准の永続資産。詳細: `docs/rules/requirements.md`）。要件ファイルはLLMにとって読み取り専用であり、生成・変更しない。変更は人間批准を経た専用PRでのみ行う**（機械的にも `.claude/settings.json` の deny＋`guard-dangerous.sh` で書き込みを拒否、CODEOWNERS＋ブランチ保護でレビュー必須化。主防壁は後者）
+- **要件の正本は `docs/requirements/`（永続資産。詳細: `docs/rules/requirements.md`）。LLM も直接生成・編集できる（2026-07-24 批准レス化・ADR-008）が、既存要件の意味変更・緩和・削除はユーザーの了解を得てから行い、理由をコミットに残す。テストを緑にする目的で要件側を動かすことは禁止**
 - APIエンドポイントを変更した場合はAPI仕様書を更新する
 - READMEには「セットアップ手順」「主要コマンド」を常に最新に保つ
 
@@ -96,5 +96,5 @@
 - CLAUDE.md本体は200行以内を目安に保つ。超えそうな場合は個別ルールを`docs/rules/`に切り出し、本体には要点のみ残す
 - AIが同じ間違いを繰り返した場合、原因と理由（なぜそのルールが必要か）を明記した1行を該当ルールファイルに追記する。理由のない抽象的なルール（例：「きれいなコードを書く」）は追加しない
 - `SERVICE.md`の技術スタック表・ディレクトリ構成・環境変数表は、実装（依存定義・設定ファイル・モジュール構成）を正としてズレがないか、整合性監査の対象に含める（原則: `docs/rules/consistency.md`、具体手順・自動チェック: `docs/service-rules/consistency.md`）
-- 共通ルール（`docs/rules/`）は基盤リポ `ai-dev-foundation` を正とする。サービス側で改善したら閉じずに逆輸入で還流し（`scripts/backport-to-common.sh`）、共通リポの改善は各サービスが順輸入で取り込む（`scripts/sync-from-common.sh`。作業の区切りが目安）。手順: `docs/rules/backport.md`。サービス固有は `SERVICE.md`・`docs/service-rules/` に置き、共通ルールに混ぜない
+- 共通ルール（`docs/rules/`）は基盤リポ `ai-dev-foundation` を正とする。**共通所有ファイル（`CLAUDE.md`・`docs/rules/`・共通スクリプト・ガードレール骨格）はサービス側で編集も還流もしない**（2026-07-24 逆輸入廃止・ADR-009。サービス側では deny＋guard で機械拒否）。改善は基盤リポで直接行い、各サービスは順輸入で取り込む（`scripts/sync-from-common.sh`。作業の区切りが目安）。手順と例外（サービス側で編集が前提の箇所）: `docs/rules/backport.md`。サービス固有は `SERVICE.md`・`docs/service-rules/` に置き、共通ルールに混ぜない
 - リポジトリの必須構成（全サービス共通で置くべきファイル・ディレクトリ）は `docs/rules/repo-layout.md` を正とする

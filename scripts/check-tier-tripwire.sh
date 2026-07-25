@@ -37,15 +37,15 @@ p_unset=0; s_unset=0
 [ "$SENS_SYMS" = "__UNSET__" ]  && { s_unset=1; SENS_SYMS=""; }
 
 if [ "$p_unset" -eq 1 ] && [ "$s_unset" -eq 1 ]; then
-	die "TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS 未定義。SERVICE.md で機微パターンを定義するか、機微面が無いなら $NONE_ACK を人間 commit で ratify してください（緑にしない＝fail-closed）"
+	die "TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS 未定義。SERVICE.md で機微パターンを定義するか、機微面が無いなら $NONE_ACK をコミットして明示宣言してください（緑にしない＝fail-closed）"
 fi
 if [ -z "$SENS_PATHS" ] && [ -z "$SENS_SYMS" ]; then
-	# 明示的に空 → 人間の「機微面なし」宣言を要求
+	# 明示的に空 → 「機微面なし」の明示宣言を要求
 	if [ -f "$NONE_ACK" ]; then
 		echo "[tier-tripwire] 機微面なし（$NONE_ACK 宣言済み）: skip"
 		exit 0
 	fi
-	die "機微パターンが空です。空設定には $NONE_ACK の ratify（人間 commit）で「機微面なし」を明示宣言してください（fail-closed）"
+	die "機微パターンが空です。空設定には $NONE_ACK のコミットで「機微面なし」を明示宣言してください（fail-closed）"
 fi
 
 TEST_RE="${TIER_TRIPWIRE_TEST_RE:-(^|/)(tests?|fixtures?)/|(^|/)test_|_test\.|\.test\.}"
@@ -102,7 +102,7 @@ owning_req() { # <file> <needs_s>
 	return 1
 }
 
-# 人間署名の例外 allowlist（CODEOWNERS 保護。赤→警告に緩和）
+# 明示登録の例外 allowlist（赤→警告に緩和）
 allow_match() { # <file>
 	[ -f "$ALLOW" ] || return 1
 	local pat
@@ -116,7 +116,7 @@ allow_match() { # <file>
 }
 tripwire_hit() { # <file> <message>：allowlist にあれば警告へ緩和、無ければ赤
 	if allow_match "$1"; then
-		warn "[allow] $2（$ALLOW で緩和・人間署名前提）"
+		warn "[allow] $2（$ALLOW で緩和・明示登録済み）"
 	else
 		hit "$2"
 	fi
@@ -161,12 +161,12 @@ if [ -n "$sens" ]; then
 			continue
 		fi
 		if is_test "$f"; then
-			# F3: test/fixture は警告に落とさない。統べる S 要件があれば改変は F1(ハッシュ再批准)に委ねる。
+			# test/fixture は警告に落とさない。統べる ratified Tier-S 要件を要求する。
 			local_s="$(owning_req "$f" 1 || true)"
 			if [ -z "$local_s" ]; then
-				tripwire_hit "$f" "機微 test/fixture $f を統べる ratified Tier-S 要件が無い（F3）"
+				tripwire_hit "$f" "機微 test/fixture $f を統べる ratified Tier-S 要件が無い"
 			else
-				echo "  ℹ 機微 test/fixture $f は $local_s が統べる（改変は F1 ハッシュ再批准に委ねる）"
+				echo "  ℹ 機微 test/fixture $f は $local_s が統べる"
 			fi
 			continue
 		fi
@@ -188,6 +188,8 @@ else
 fi
 
 # ---- S4: グリーンフィールドの空虚な緑（PR非依存の静的走査。警告のみ） ----
+# 差分ベースの検査は「最初から機微コードがあって要件が1件も無い」状態を素通りするため、
+# 変更の有無と無関係に静的走査で網を張る（人間批准とは無関係の機械ゲート。ADR-008 §維持したもの）。
 s_req_count=0
 for rf in "$REQ_DIR"/R-*.md; do
 	[ "$(fm_scalar "$rf" status)" = "ratified" ] && [ "$(fm_scalar "$rf" tier)" = "S" ] && s_req_count=$(( s_req_count + 1 ))

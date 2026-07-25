@@ -2,7 +2,7 @@
 # new-service.sh のプロファイル合成（ADR-006 フェーズ1）の回帰。
 # 生成先は $HOME/projects 固定のため HOME をテスト毎に隔離する。
 # 要件マーカーは付けない（未登録IDのマーカーは check-requirements-coverage.sh の
-# dangling 検出で赤になるため。要件化は人間批准後に行う）。
+# dangling 検出で赤になるため。要件化は要件ファイルを ratified で起こしてから行う）。
 
 setup() {
 	REPO="$BATS_TEST_DIRNAME/.."
@@ -20,10 +20,10 @@ make_sandbox() {
 	mkdir -p "$SB/scripts" "$SB/docs/rules"
 	cp "$SUT" "$SB/scripts/"
 	cp -a "$REPO/profiles" "$SB/profiles"
-	cp "$REPO/CLAUDE.md" "$REPO/COMMAND.md" "$REPO/.backport-manifest" "$SB/"
+	cp "$REPO/CLAUDE.md" "$SB/"
 	cp "$REPO/docs/rules/"*.md "$SB/docs/rules/"
 	for s in pre-push commit-msg check-coverage.sh check-requirements-coverage.sh \
-	         check-tier-tripwire.sh backport-to-common.sh sync-from-common.sh; do
+	         check-tier-tripwire.sh sync-from-common.sh; do
 		cp "$REPO/scripts/$s" "$SB/scripts/"
 	done
 }
@@ -35,17 +35,20 @@ make_sandbox() {
 	[ "$status" -eq 0 ]
 	T="$HOME/projects/svc1"
 	# repo-layout.md「必須ファイル / ディレクトリ」との突合（配布漏れなし）
-	for f in CLAUDE.md COMMAND.md SERVICE.md README.md Makefile .editorconfig .env.example .gitignore \
-		.backport-manifest .coverage-floor .req-coverage-baseline .tier-tripwire-allow \
+	for f in CLAUDE.md SERVICE.md README.md Makefile .editorconfig .env.example .gitignore \
+		.coverage-floor .req-coverage-baseline .tier-tripwire-allow \
 		.devcontainer/Dockerfile .devcontainer/devcontainer.json .devcontainer/postCreate.sh \
 		.claude/settings.json .claude/scripts/guard-dangerous.sh .claude/scripts/session-start-rules.sh \
-		.github/CODEOWNERS .github/workflows/ci.yml \
+		.github/workflows/ci.yml \
 		scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
 		scripts/check-requirements-coverage.sh scripts/check-tier-tripwire.sh \
-		scripts/backport-to-common.sh scripts/sync-from-common.sh \
+		scripts/sync-from-common.sh \
 		docs/requirements/R-000-template.md docs/service-rules/consistency.md docs/decisions/README.md; do
 		[ -e "$T/$f" ]
 	done
+	# 逆輸入の廃止（ADR-009）: 逆輸入ツール・マニフェストは配布しない
+	[ ! -e "$T/scripts/backport-to-common.sh" ]
+	[ ! -e "$T/.backport-manifest" ]
 	[ -n "$(ls "$T/docs/rules/")" ]
 }
 
@@ -127,13 +130,10 @@ make_sandbox() {
 	[ "$status" -eq 2 ]
 }
 
-@test "緑: 生成物の CODEOWNERS は既定所有者が設定されプレースホルダが残らない（C-6）" {
+@test "廃止回帰: 生成物に CODEOWNERS を配布しない（批准レス化・ADR-008）" {
 	run ns svc12 --profile product-static
 	[ "$status" -eq 0 ]
-	F="$HOME/projects/svc12/.github/CODEOWNERS"
-	[ -f "$F" ]
-	! grep -q "OWNER-PLACEHOLDER" "$F"
-	grep -E "^docs/requirements/" "$F" | grep -q "@shohei-osawa"
+	[ ! -e "$HOME/projects/svc12/.github/CODEOWNERS" ]
 }
 
 # ---- フェーズ2: display-green / failclosed_profile（ADR-006 §7.2） ----

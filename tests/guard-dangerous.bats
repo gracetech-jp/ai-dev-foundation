@@ -8,12 +8,25 @@
 # adversarial マーカーも付す。
 # @req: R-001
 # @adversarial: R-001
+# @req: R-002
+# @adversarial: R-002
 
 GUARD="${BATS_TEST_DIRNAME}/../.claude/scripts/guard-dangerous.sh"
 
 # Bash コマンド文字列を PreToolUse フック入力(JSON)に包んで guard へ流し込む。
 run_guard() {
 	jq -n --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | bash "$GUARD"
+}
+
+# サービスリポ想定で guard を実行する（プロジェクトルート＝profiles/_base の無い一時ディレクトリ。
+# R-002: 共通所有ファイルのサービス側編集封鎖は基盤リポ以外でのみ有効になる）。
+run_guard_svc() {
+	jq -n --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR" bash "$GUARD"
+}
+
+# 基盤リポ想定で guard を実行する（プロジェクトルート＝profiles/_base を持つこのリポ）。
+run_guard_foundation() {
+	jq -n --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | CLAUDE_PROJECT_DIR="$BATS_TEST_DIRNAME/.." bash "$GUARD"
 }
 
 # deny 判定を取り出す（許可時は空文字）。jq の整形ゆれ・空入力に頑健。
@@ -95,6 +108,80 @@ decision_of() {
 
 @test "Bash 以外のツールは素通しする" {
 	run bash -c 'jq -n "{tool_name:\"Read\",tool_input:{file_path:\".env\"}}" | bash "'"$GUARD"'"'
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ---- R-002: 共通所有ファイルのサービス側編集封鎖（ADR-009。基盤リポでは無効） ----
+
+@test "R-002: サービス想定で docs/rules/ へのリダイレクト書込を deny する" {
+	run run_guard_svc "echo hack > docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定でチェイン末尾の追記（>>）も deny する" {
+	run run_guard_svc "ls && echo hack >> docs/rules/security.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で >| による上書き（noclobber 無効化）も deny する" {
+	run run_guard_svc "echo hack >| docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で >| がチェイン途中にあっても deny する" {
+	run run_guard_svc "ls && cat /tmp/x >| CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で CLAUDE.md への sed -i を deny する" {
+	run run_guard_svc "sed -i 's/a/b/' CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で共通スクリプトへの cp 上書きを deny する" {
+	run run_guard_svc "cp /tmp/x scripts/pre-push"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で settings.json への tee を deny する" {
+	run run_guard_svc "cat /tmp/x | tee .claude/settings.json"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定で配布スキルへの書込を deny する" {
+	run run_guard_svc "echo x > .claude/skills/extract-requirements/SKILL.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002: サービス想定でも共通所有ファイルの読取（cat）は許可する" {
+	run run_guard_svc "cat docs/rules/git.md"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002: サービス想定でも順輸入の実行は許可する（唯一の正規更新経路）" {
+	run run_guard_svc "bash scripts/sync-from-common.sh /path/to/common --apply"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002: 基盤リポ想定では共通所有ファイルの編集を素通しする（編集元）" {
+	run run_guard_foundation "sed -i 's/a/b/' CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002: サービス想定で編集前提のファイル（SERVICE.md・Makefile）は素通しする（例外）" {
+	run run_guard_svc "echo impl >> Makefile && sed -i 's/a/b/' SERVICE.md"
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }

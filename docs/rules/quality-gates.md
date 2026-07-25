@@ -7,7 +7,7 @@
 > 各サービスが `Makefile` ターゲットと `SERVICE.md` で定義する。ここには**原則と構造**だけを置く。
 >
 > ゲート記号（P-0・G1〜G5・M1〜M3・F1〜F3・B1〜B3・S1〜S4）の定義の正は、基盤リポ `ai-dev-foundation` の
-> `docs/decisions/007-requirements-traceability.md`「導入した機構」表。本書は §番号で原則のみを記し、記号定義は複製しない。
+> `docs/decisions/007-requirements-traceability.md`「導入した機構」表（一部の機構は ADR-008 の批准レス化で廃止。廃止一覧は同 ADR 参照）。本書は §番号で原則のみを記し、記号定義は複製しない。
 
 ---
 
@@ -30,6 +30,8 @@
 - push 前に **`make audit-all` → `make test` → `make req-coverage` → `make tier-tripwire`** を順に実行し、
   失敗したら push をブロックする（`make all` と同じ4段。req-coverage / tier-tripwire がCIのみで強制されると
   要件未達の検出が push 後まで遅れるため、2026-07-22 にローカル側も4段へ揃えた）。
+  機微面を持たないリポジトリは、機微パターンを空にしたうえで `docs/requirements/.tier-tripwire-none` を
+  コミットすることで4段目を正当スキップする（fail-closed。宣言の書き方は `SERVICE.md` の Tier トリップワイヤ節）。
 - 回避手段（`git push --no-verify`）の存在はメッセージに明示する（緊急避難用。常用しない）。
 - フックは `make install-hooks` で導入。導入忘れに備え、CI側を最終防波堤にする（下記4）。
 

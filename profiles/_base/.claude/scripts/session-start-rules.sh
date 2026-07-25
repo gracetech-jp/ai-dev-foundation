@@ -32,7 +32,7 @@ content+=$'\n'
 # 要件トレーサビリティ状態（G5: 要件着手前提の surface。警告のみ・非ブロックで session は止めない）
 REQ_DIR="$WORKSPACE/docs/requirements"
 if [ ! -d "$REQ_DIR" ]; then
-	req_status="⚠ 要件ディレクトリ docs/requirements/ がありません（要件未定義）。着手前に要件を定義・批准してください（docs/rules/requirements.md）。"
+	req_status="⚠ 要件ディレクトリ docs/requirements/ がありません（要件未定義）。着手前に要件を定義してください（docs/rules/requirements.md）。"
 else
 	ratified=0; draft=0; other=0; total=0
 	for rf in "$REQ_DIR"/R-*.md; do
@@ -50,14 +50,13 @@ else
 		req_status="要件件数: ratified=${ratified} / draft=${draft}"
 		[ "$other" -gt 0 ] && req_status="${req_status} / その他=${other}"
 		if [ "$draft" -gt 0 ]; then
-			req_status="${req_status}"$'\n'"⚠ 未批准(draft)の要件が ${draft} 件あります。批准は人間のみ（docs/rules/requirements.md）。未批准要件に紐づくテストは req-coverage で dangling＝赤になります。"
+			req_status="${req_status}"$'\n'"⚠ draft の要件が ${draft} 件あります。内容を確定したら status: ratified に更新すること（draft のままの要件に紐づくテストは req-coverage で dangling＝赤になります。docs/rules/requirements.md）。"
 		fi
 	fi
 fi
 content+="=== 要件トレーサビリティ状態 ==="$'\n'"${req_status}"$'\n'
-# 封鎖情報は自己完結の1文で常設する（全文注入時代は requirements.md 本文がその場で禁止を宣言していた。
-# インデックス化後も Read 前に禁止が伝わるよう、同等の抑止力をこの1行に残す）
-content+="⛔ docs/requirements/ 配下は LLM 書き込み禁止（deny＋フックで機械拒否・例外なし）。要件の生成・変更・批准（status/tier 等）は人間の commit でのみ成立し、LLM は下書きを保護外スクラッチ（.req-drafts/ 等）へ出力して人間が確認のうえ移す（詳細: docs/rules/requirements.md）。"$'\n\n'
+# 要件の扱いは自己完結の1文で常設する（Read 前に原則が伝わるように。2026-07-24 批准レス化・ADR-008）
+content+="📌 docs/requirements/ は永続要件資産（一意ID・再利用禁止）。LLM も直接編集できるが、実装の都合に合わせて既存要件の意味を書き換えることは禁止 — 要件の意味変更・削除はユーザーの了解を得てから行い、理由をコミットに残す（詳細: docs/rules/requirements.md）。"$'\n\n'
 
 # JSON 生成は jq に委ねる（手組み sed エスケープはタブ・CR・制御文字を取りこぼし不正な JSON になるため）。
 # jq は guard-dangerous.sh と共通の devcontainer 依存（Dockerfile で導入済み）。

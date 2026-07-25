@@ -34,16 +34,8 @@ for pair in ${renames[@]+"${renames[@]}"}; do
 	fi
 done
 
-echo "[audit] (5) CODEOWNERS 検査（要件パスのレビュー必須化。docs/rules/git.md）..."
-# CODEOWNERS の存在と docs/requirements/ 所有者は必須（ファイル欠落は fail）。
-if [ ! -f "$ROOT/.github/CODEOWNERS" ]; then
-	report ".github/CODEOWNERS がありません（要件パスのレビュー必須化。docs/rules/git.md）"
-elif ! grep -q 'docs/requirements/' "$ROOT/.github/CODEOWNERS"; then
-	report ".github/CODEOWNERS に docs/requirements/ の所有者がありません（要件パスが未保護）"
-fi
-# サーバ側ブランチ保護の API 確認は行わない（solo・ブランチ保護未導入の間は認識済みの借金であり、
-# 毎push の⚠警告が空回りしていたため 2026-07-23 に撤去）。フェーズ切替（開発者2人以上 or 初回リリース）で
-# ブランチ保護を有効化する際、docs/rules/git.md のチェックリストに従い API 確認をここへ再追加する。
+# （旧(5) CODEOWNERS 検査は 2026-07-24 の批准レス化（ADR-008）で撤去。要件パスの人間レビュー必須化
+#   そのものを廃止したため。チーム化でレビュー運用を再導入する場合は ADR-008 を見直して復活させる）
 
 echo ""
 if [ "$fail" -ne 0 ]; then

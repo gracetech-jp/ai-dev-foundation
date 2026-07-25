@@ -26,17 +26,16 @@ coverage:
 audit-deps:
 	@uv run --with pip-audit pip-audit
 
-# 要件↔テストのカバレッジ・妥当性・改変検知（docs/rules/requirements.md / testing.md）。
+# 要件↔テストのカバレッジ検証（docs/rules/requirements.md / testing.md）。
 # Python 系のマーカー走査デフォルト（要件0件なら緑＝設定は実装であり fail-open ではない。要件を持った時点から実検証）。
 req-coverage:
 	@REQ_TEST_PATHS="tests" \
 	 REQ_MARKER_RE='@req:?[[:space:]]*R-[0-9]+' \
 	 ADV_MARKER_RE='@adversarial:?[[:space:]]*R-[0-9]+' \
-	 REQ_COMMENT_PREFIX='#' \
 	 bash scripts/check-requirements-coverage.sh
 
 # Tierトリップワイヤ（docs/rules/tiers.md）。product-web は .tier-tripwire-none を同梱しない＝
-# 機微パターンの定義（SERVICE.md「Tierトリップワイヤ設定」）か、真に機微が無い場合の人間 commit 宣言まで
+# 機微パターンの定義（SERVICE.md「Tierトリップワイヤ設定」）か、真に機微が無い場合の .tier-tripwire-none 宣言まで
 # exit 2 で赤（fail-closed）。動的アプリは機微を持つのが常のため、これが実装強制の本領。
 tier-tripwire:
 	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \

@@ -1,9 +1,9 @@
 # 機微面なし宣言（Tierトリップワイヤ）
 #
 # ai-dev-foundation はアプリの機微プロダクトコード（認証・認可・資産の移動や確定・機微データ処理等）を
-# 持たない共通基盤（docs/rules・.claude・scripts・templates のみ）。ゆえに Makefile の tier-tripwire は
+# 持たない共通基盤（docs/rules・.claude・scripts・profiles のみ）。ゆえに Makefile の tier-tripwire は
 # TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS を空とし、本ファイルの存在をもって
-# 「機微面なし」を人間が明示宣言する（check-tier-tripwire.sh が正当スキップする）。
+# 「機微面なし」を明示宣言する（check-tier-tripwire.sh が正当スキップする）。
 #
-# 宣言者: 大澤将平
+# 2026-07-24 批准レス化（ADR-008）: 宣言に人間 commit は要求しない。コミットされていることだけを要求する。
 # 前提が変わり機微コードを持つに至ったら本ファイルを削除し、機微パターンを定義すること（fail-closed に戻る）。

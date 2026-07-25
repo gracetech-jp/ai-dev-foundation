@@ -33,19 +33,20 @@ lint:
 coverage:
 	@echo "[coverage] 基盤リポにカバレッジ対象のアプリコードはありません。スキップします。"
 
-# 要件↔テストのカバレッジ・妥当性・改変検知（詳細: docs/rules/requirements.md / testing.md）。
+# 要件↔テストのカバレッジ検証（詳細: docs/rules/requirements.md / testing.md）。
 # 基盤は bats テストにコメントマーカー（# @req: R-xxx / # @adversarial: R-xxx）で要件を紐づける。
 # マーカー走査設定はスタック依存のため env で渡す（サービス側は SERVICE.md 由来の値を Makefile で設定）。
 req-coverage:
 	@REQ_TEST_PATHS="tests" \
 	 REQ_MARKER_RE='@req:?[[:space:]]*R-[0-9]+' \
 	 ADV_MARKER_RE='@adversarial:?[[:space:]]*R-[0-9]+' \
-	 REQ_COMMENT_PREFIX='#' \
 	 bash scripts/check-requirements-coverage.sh
 
 # Tierトリップワイヤ（Tier デスカレーションをコード実態から裏取り。詳細: docs/rules/tiers.md）。
 # 基盤 ai-dev-foundation は機微プロダクトコードを持たないため「機微面なし」を宣言する運用:
-# 空設定＋ docs/requirements/.tier-tripwire-none（人間 commit で ratify）で正当スキップになる。
+# 空設定＋ docs/requirements/.tier-tripwire-none（コミット済みの明示宣言）で正当スキップになる。
+# 「実行しない」ではなく「実行して宣言でスキップ」にするのは、前提が変わって機微コードが
+# 入った時に宣言ファイルの削除だけで fail-closed へ戻せるようにするため（ADR-008 §維持したもの）。
 tier-tripwire:
 	@TIER_TRIPWIRE_PATHS="" TIER_TRIPWIRE_SYMBOLS="" \
 	 bash scripts/check-tier-tripwire.sh

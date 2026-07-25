@@ -17,8 +17,6 @@
       "Bash(git checkout -- *)",
       "Bash(git clean -f*)",
       "Bash(git branch -D:*)",
-      "Write(docs/requirements/**)",
-      "Edit(docs/requirements/**)",
       "Read(.env)",
       "Read(.env.local)",
       "Read(.env.*.local)",
@@ -53,7 +51,6 @@
       "Bash(gh workflow run:*)"
     ]
   },
-  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {

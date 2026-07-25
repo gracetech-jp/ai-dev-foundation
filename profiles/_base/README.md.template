@@ -20,4 +20,4 @@ make audit-all   # 整合性監査一式
 
 ## 共通ルール更新時
 ai-dev-foundation の CLAUDE.md・docs/rules/ が更新された場合は、
-このリポジトリの該当ファイルも手動で同期してください。
+`./scripts/sync-from-common.sh <共通リポのパス> --apply` で順輸入してください（詳細: docs/rules/backport.md）。
