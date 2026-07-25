@@ -42,6 +42,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: make req-coverage
 
+  # Tierデスカレーションのコード実態からの裏取り。基盤の機微面＝配布するガードレール骨格。
+  # pre-push の4段目と対になる（ADR-008「CI/pre-push の二重化は維持」の CI 側の実体）。
+  # 差分基準に origin/main を使うため全履歴が要る（fetch-depth: 0）。
+  tier-tripwire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: make tier-tripwire
+
   # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする。
   secret-scan:
     runs-on: ubuntu-latest

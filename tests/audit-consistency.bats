@@ -132,3 +132,11 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[ "$status" -eq 1 ]
 	[[ "$output" == *".tier-tripwire-none があります"* ]]
 }
+
+@test "赤: CI から tier-tripwire ジョブが消えると退化検出で fail" {
+	make_sandbox
+	sed -i '/^  tier-tripwire:$/,+7d' "$SB/.github/workflows/ci.yml"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"必須ジョブ 'tier-tripwire' がありません"* ]]
+}

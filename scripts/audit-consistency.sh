@@ -277,6 +277,17 @@ if [ -f "$ROOT/docs/requirements/.tier-tripwire-none" ]; then
 	report "基盤リポに docs/requirements/.tier-tripwire-none があります（Tierトリップワイヤ全体が正当スキップされ無効化されます）"
 fi
 
+# CI ジョブの退化検出。pre-push と CI の二重化（ADR-008「維持したもの」）は、片方から段が
+# 消えても誰も気づかないまま成立しなくなる。実際 tier-tripwire ジョブが欠落していた（2026-07-25 是正）。
+CI_YML="$ROOT/.github/workflows/ci.yml"
+if [ -f "$CI_YML" ]; then
+	for job in audit lint test req-coverage tier-tripwire secret-scan; do
+		if ! grep -qE "^[[:space:]]{2}${job}:[[:space:]]*$" "$CI_YML"; then
+			report ".github/workflows/ci.yml に必須ジョブ '${job}' がありません（CI と pre-push の二重化が崩れます）"
+		fi
+	done
+fi
+
 echo "[audit] (9) 要件一覧（README）と要件ファイルの突合..."
 # docs/requirements/README.md の一覧表は手書きのため実ファイルとずれる（R-001 の status が
 # 長期間 draft のまま放置されていた。2026-07-25 是正）。ID と status の一致を機械強制する。
