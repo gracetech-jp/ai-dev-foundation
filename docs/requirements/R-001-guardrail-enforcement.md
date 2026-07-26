@@ -9,6 +9,8 @@ paths:
   - ".claude/settings.json"
   - "profiles/_base/.claude/scripts/guard-dangerous.sh"
   - "profiles/_base/.claude/settings.json"
+  - "service-templates/claude/scripts/guard-dangerous.sh"
+  - "service-templates/claude/settings.json"
 negative_space:
   - "再帰強制削除・履歴/ブランチ破壊・force push などの破壊的コマンドが、表記ゆれ（結合フラグ・順序違い・パス先行・チェイン実行）を用いても実行できてはならない"
   - "秘密情報ファイルのパスが平文でコマンド文字列に現れる読み取りが、bash 経由（外部コマンド・インタプリタのインラインコードとの共起、パイプ跨ぎ、ヒアドキュメント）で成立してはならない"
@@ -37,6 +39,16 @@ negative_space:
 
 > 2026-07-24 批准レス化（ADR-008）: 旧 `tests_ratified_by` / `tests_ratified_sha` / `test_assets` は
 > スキーマごと廃止したため本要件からも除去した。要件内容（受け入れ基準・negative_space）は不変。
+
+> **2026-07-26 paths の拡大（保護範囲の拡大・ユーザー承認済み）**: 参照方式への移行フェーズ0で、
+> `new-service.sh` が配る初期値の正本を `service-templates/` へ移した。移行後はこちらが
+> ガードと deny の配布元になるが、Tier トリップワイヤの機微パスに入っておらず**保護対象外**だった。
+> `service-templates/claude/scripts/guard-dangerous.sh` と `service-templates/claude/settings.json` を
+> paths に追加し、Makefile の `TIER_TRIPWIRE_PATHS` にも同じ2件を加えて実効化した。
+> **これは保護範囲の拡大であり緩和ではない**（受け入れ基準・negative_space は不変）。
+> なお `service-templates/` 配下でディレクトリ名を `.claude` ではなく `claude` にしているのは、
+> `.claude/skills/` が作業ディレクトリ配下にあると Claude Code がスコープ付きスキルとして
+> オンデマンドに読み込むため（実測）。配布前の雛形が基盤セッションに混ざるのを構造的に防ぐ。
 
 > **2026-07-25 negative_space の緩和（ユーザー了解のうえ実施）**: 旧文言
 > 「秘密情報ファイルが bash 経由（読取コマンドとの共起・パイプ跨ぎ）で読み取れてはならない」は、

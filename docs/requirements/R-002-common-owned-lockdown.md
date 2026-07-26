@@ -9,6 +9,8 @@ paths:
   - "profiles/_base/.claude/scripts/guard-dangerous.sh"
   - "profiles/_base/.claude/settings.json"
   - "profiles/*/files/.claude/settings.json"
+  - "service-templates/claude/scripts/guard-dangerous.sh"
+  - "service-templates/claude/settings.json"
 negative_space:
   - "サービスリポで、共通所有ファイル（CLAUDE.md・docs/rules/・共通スクリプト・ガードレール骨格・配布skills/agents）が bash 経由（リダイレクト・tee・cp/mv・sed -i 等）で書き換えられてはならない"
   - "基盤リポ ai-dev-foundation 自身で共通所有ファイルの編集がブロックされてはならない（編集元のため）"
@@ -31,3 +33,10 @@ negative_space:
 `tests/guard-dangerous.bats`（`make test` から bats で実行）。サービス想定（`CLAUDE_PROJECT_DIR` を
 `profiles/_base` の無い一時ディレクトリに向ける）での書込遮断と、基盤想定での素通し・順輸入素通しの
 回帰を含む。
+
+> **2026-07-26 paths の拡大（保護範囲の拡大・ユーザー承認済み）**: 参照方式への移行フェーズ0で、
+> 共通所有ファイルの配布元が `service-templates/` に移った。移行後にロックの本体となる
+> `service-templates/claude/scripts/guard-dangerous.sh` と `service-templates/claude/settings.json` を
+> paths に追加し、Makefile の `TIER_TRIPWIRE_PATHS` にも同じ2件を加えて実効化した。
+> **これは保護範囲の拡大であり緩和ではない**（受け入れ基準・negative_space は不変）。
+> 追加しなければ、移行後は「配布元を無要件で書き換えられるのに緑」という状態になっていた。
