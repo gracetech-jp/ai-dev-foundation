@@ -90,14 +90,26 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[[ "$output" == *"共通所有ロックの乖離"*"docs/newthing.md"*"COMMON_OWNED に掛かりません"* ]]
 }
 
-@test "赤: deny の Write/Edit が非対称になると fail" {
+# Write(path) はファイル権限チェックに一致せず効かない。Edit(path) が全ファイル編集ツールを覆う。
+# 旧テストは Write/Edit の対称性を要求していたが、効かないルールを必須にする検査だった（2026-07-26 是正）。
+@test "赤: 効かない Write(...) の deny を配布 settings.json に置くと fail" {
+	make_sandbox
+	jq '.permissions.deny += ["Write(CLAUDE.md)"]' \
+		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"Write(...) の deny が残っています"* ]]
+}
+
+@test "赤: ロックのコアから Edit を1件外すと退化検出で fail" {
 	make_sandbox
 	jq '.permissions.deny |= map(select(. != "Edit(CLAUDE.md)"))' \
 		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
 	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"Write/Edit が非対称"* ]]
+	[[ "$output" == *"ロックの退化"*"CLAUDE.md"* ]]
 }
 
 @test "赤: manifest の配布対象がロックされていないと fail" {

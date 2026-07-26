@@ -200,13 +200,12 @@ if command -v jq >/dev/null 2>&1; then
 		".claude/scripts/guard-dangerous.sh"   # bash 経路の遮断本体（自己防御）
 		"scripts/sync-from-common.sh"          # 唯一の正規更新経路
 	)
+	# 検査するのは Edit のみ（2026-07-26）。Write はファイル権限チェックに一致せず効かない。
 	for core in "${LOCK_CORE[@]}"; do
-		for verb in Write Edit; do
-			if ! jq -e --arg e "${verb}(${core})" '.permissions.deny | index($e)' \
-				"$ROOT/profiles/_base/.claude/settings.json" >/dev/null 2>&1; then
-				report "profiles/_base/.claude/settings.json の deny に '${verb}(${core})' がありません（ADR-009 ロックの退化）"
-			fi
-		done
+		if ! jq -e --arg e "Edit(${core})" '.permissions.deny | index($e)' \
+			"$ROOT/profiles/_base/.claude/settings.json" >/dev/null 2>&1; then
+			report "profiles/_base/.claude/settings.json の deny に 'Edit(${core})' がありません（ADR-009 ロックの退化）"
+		fi
 	done
 	# プロファイル層の settings.json（ask のスタック別絞り込み。2026-07-23 導入）は
 	# ask のみ _base と差分可。allow/deny/hooks の変更が _base に入ってもプロファイル複製に
@@ -230,7 +229,13 @@ echo "[audit] (7) 共通所有ロックの定義突合（guard 正規表現 ↔ 
 if command -v jq >/dev/null 2>&1; then
 	GUARD=".claude/scripts/guard-dangerous.sh"
 	BASE_SET="$ROOT/profiles/_base/.claude/settings.json"
-	deny_write() { jq -r '.permissions.deny[] | select(startswith("Write(")) | ltrimstr("Write(") | rtrimstr(")")' "$BASE_SET"; }
+	# ロックの実体は Edit(path) のみ（2026-07-26 是正）。
+	# Claude Code は Write(path) をファイル権限チェックに一致させず、Edit(path) が全ファイル編集
+	# ツールを覆う。旧実装は Write と Edit の対称性を必須にしていたが、片側は**効かないルール**で
+	# あり、検査そのものが誤った前提に立っていた（セッション起動時に Claude Code が
+	# 「Write(...) is not matched by file permission checks — only Edit(path) rules are」と
+	# 警告することで判明）。Write 15件を削除し、Edit 一本に統一した。
+	deny_edit() { jq -r '.permissions.deny[] | select(startswith("Edit(")) | ltrimstr("Edit(") | rtrimstr(")")' "$BASE_SET"; }
 	# guard 側の正規表現はスクリプトから抜き出す（ここに書き写すと4箇所目の重複になるため）
 	guard_re="$(sed -n "s/^[[:space:]]*COMMON_OWNED='\(.*\)'$/\1/p" "$ROOT/$GUARD")"
 	if [ -z "$guard_re" ]; then
@@ -242,19 +247,17 @@ if command -v jq >/dev/null 2>&1; then
 			if ! printf '%s' "$p" | grep -qE "$guard_re"; then
 				report "共通所有ロックの乖離: deny の '$p' が $GUARD の COMMON_OWNED に掛かりません（bash 経路が素通し）"
 			fi
-		done < <(deny_write)
+		done < <(deny_edit)
 	fi
-	# ② Write と Edit の対称性。片側だけ deny は、もう片方のツールで素通しになる穴。
-	if ! diff -q \
-		<(deny_write | sort) \
-		<(jq -r '.permissions.deny[] | select(startswith("Edit(")) | ltrimstr("Edit(") | rtrimstr(")")' "$BASE_SET" | sort) >/dev/null 2>&1; then
-		report "共通所有ロックの Write/Edit が非対称（片側だけ deny のパスがある＝もう片方のツールで編集できる）"
+	# ② Write が残っていないこと。効かないルールを置くと「ロックされている」という誤解を生む。
+	if jq -e '[.permissions.deny[] | select(startswith("Write("))] | length > 0' "$BASE_SET" >/dev/null 2>&1; then
+		report "配布 settings.json に Write(...) の deny が残っています（ファイル権限チェックに一致せず無効。Edit(...) に一本化すること）"
 	fi
 	# ③ .backport-manifest の配布対象が全てロックされていること。逆方向（deny ⊆ manifest）は課さない:
 	#    profiles/_base 由来の骨格（.claude/ 配下）はパスが 1:1 対応せずマニフェスト対象外＝手動同期のため
 	#    （docs/rules/backport.md 注1）。
 	if [ -f "$ROOT/.backport-manifest" ]; then
-		denied_paths="$(deny_write | sed 's/\*\*$//')"
+		denied_paths="$(deny_edit | sed 's/\*\*$//')"
 		while IFS= read -r line; do
 			line="${line%%#*}"; line="$(printf '%s' "$line" | tr -d '[:space:]')"
 			[ -n "$line" ] || continue
