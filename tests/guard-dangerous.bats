@@ -244,14 +244,89 @@ decision_of() {
 	[ "$(decision_of "$output")" = "deny" ]
 }
 
-@test "R-002: サービス想定で共通所有ファイルの rm 削除を deny する（申し送り: 編集より影響が大きい）" {
+# ---- 参照方式への移行期における削除の許可（2026-07-26） ----
+# 参照方式では共通所有ファイルがサービス側に存在しなくなる。移行のフェーズ3で複製を削除する
+# 必要があるが、共通所有ロックが削除自体を遮断していた。ロックの目的は「サービス側が共通ファイルを
+# 勝手に育てる」ことの防止であり、複製を消す操作はその目的に反しない。
+# **削除は許可し、編集は引き続き遮断する**。この緩和は移行期の暫定で、フェーズ5でロックごと撤去する。
+# 旧テスト（rm を deny する）は方針変更に伴い、許可の確認へ置き換えた。
+
+@test "R-002/移行: サービス想定で共通所有ファイルの rm 削除を許可する（フェーズ3の先行条件）" {
 	run run_guard_svc "rm CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/移行: サービス想定で共通スクリプトの rm 削除も許可する" {
+	run run_guard_svc "rm -v scripts/check-tier-tripwire.sh"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/移行: docs/rules をディレクトリごと rm -r で削除するのを許可する" {
+	run run_guard_svc "rm -r docs/rules"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/移行: 配布ガード本体の rm 削除も許可する" {
+	run run_guard_svc "rm .claude/scripts/guard-dangerous.sh"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "R-002/移行: rm -rf は破壊的コマンド検査が引き続き deny する（-f を付けさせない）" {
+	run run_guard_svc "rm -rf docs/rules"
 	[ "$status" -eq 0 ]
 	[ "$(decision_of "$output")" = "deny" ]
 }
 
-@test "R-002: サービス想定で共通スクリプトの rm 削除も deny する" {
-	run run_guard_svc "rm -v scripts/check-tier-tripwire.sh"
+# ---- 編集は引き続き遮断（削除の許可が編集の許可に波及していないこと） ----
+
+@test "R-002/移行: 削除を許可しても tee による編集は deny のまま" {
+	run run_guard_svc "cat /tmp/x | tee CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: sed -i による編集は deny のまま" {
+	run run_guard_svc "sed -i 's/a/b/' CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: node -e の writeFileSync は deny のまま" {
+	run run_guard_svc "node -e \"require('fs').writeFileSync('CLAUDE.md','x')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: python -c の書き込みは deny のまま" {
+	run run_guard_svc "python -c \"open('docs/rules/git.md','w').write('x')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: perl -pi -e による置換は deny のまま" {
+	run run_guard_svc "perl -pi -e 's/a/b/' CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: cp による上書きは deny のまま" {
+	run run_guard_svc "cp /tmp/evil CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: mv による上書きは deny のまま（削除に見えて実体は編集）" {
+	run run_guard_svc "mv /tmp/evil CLAUDE.md"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "R-002/移行: リダイレクト書き込みは deny のまま" {
+	run run_guard_svc "echo x > docs/rules/git.md"
 	[ "$status" -eq 0 ]
 	[ "$(decision_of "$output")" = "deny" ]
 }

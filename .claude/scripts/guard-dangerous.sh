@@ -190,10 +190,22 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		if printf '%s' "$STRIPPED" | grep -qE ">[>|]?[[:space:]]*[^|;&<>]*$COMMON_OWNED"; then
 			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 		fi
-		# b) 変更系コマンド（rm/tee/cp/mv/dd/install/truncate/patch/rsync/sed -i/インタプリタ）が
+		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i/インタプリタ）が
 		#    共通所有ファイルと共起（過剰側=fail-safe）。
-		#    rm は 2026-07-25 に追加（sumai-desk の申し送り。破壊的コマンド検査は rm -rf 等の再帰強制しか見ないため、
-		#    `rm CLAUDE.md` のような単純削除が素通ししていた。編集より影響が大きい経路が無防備だった）。
+		#
+		#    【rm は 2026-07-26 に一覧から外した — 参照方式への移行期における削除の許可】
+		#    参照方式では共通所有ファイルがサービス側に**存在しなくなる**（複製をやめて共通リポを参照する）。
+		#    移行のフェーズ3で各サービスが複製を削除する必要があるが、このロックが削除自体を遮断するため
+		#    先に進めない。ロックは「サービス側が共通ファイルを勝手に育てる」ことを防ぐ仕組みであり、
+		#    複製を消す操作はその目的に反しない（消えれば育ちようがない）。
+		#    したがって削除は許可し、**編集は引き続き遮断する**（tee / cp / mv / sed -i / インタプリタ経由の
+		#    書き込み・リダイレクト）。mv を許可しないのは、`mv src CLAUDE.md` が上書き＝編集になるため。
+		#    ディレクトリごと消す場合は `rm -r`（`-f` を付けない）を使うこと。`-r` と `-f` が揃うと
+		#    破壊的コマンド検査（このスクリプト上部）が別途遮断する。
+		#    **この緩和は移行期の暫定である。フェーズ5で共通所有ロックごと撤去する前提**
+		#    （参照方式では守る対象がサービス側に無くなり、ロック自体が空洞化するため）。
+		#    旧経緯: rm は 2026-07-25 に追加された（sumai-desk の申し送り。破壊的コマンド検査は
+		#    rm -rf 等の再帰強制しか見ないため `rm CLAUDE.md` が素通ししていた）。
 		#    インタプリタ（python/node/perl/ruby/php/deno/bun）も 2026-07-25 に追加（層C）。
 		#    当初は「インタプリタ経由を列挙しない」判断だったが、それは devcontainer にインタプリタが
 		#    存在しない前提の上にあった。前提が消えると `node -e "require('fs').writeFileSync('CLAUDE.md','x')"`
@@ -214,7 +226,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 			# 境界条件は READERS と同じ理由で「直後が / なら不一致」とする（2026-07-26 是正）。
 			# `bash /home/node/.claude/scripts/guard-dangerous.sh` が `node` に誤一致して
 			# 遮断されていた（node はコマンドではなくホームディレクトリ名の一部）。
-			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(rm|tee|cp|mv|dd|install|truncate|patch|rsync|python[0-9]*(\.[0-9]+)*|node|nodejs|perl|ruby|php|deno|bun)([^[:alnum:]_/.-]|$)' ||
+			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync|python[0-9]*(\.[0-9]+)*|node|nodejs|perl|ruby|php|deno|bun)([^[:alnum:]_/.-]|$)' ||
 			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_/.-]|$).*-i'; then
 				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 			fi
