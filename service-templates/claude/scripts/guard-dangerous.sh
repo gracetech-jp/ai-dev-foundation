@@ -99,7 +99,20 @@ done < <(printf '%s\n' "$STRIPPED" | awk '{gsub(/\|\||&&|[|;&]/, "\n"); print}')
 #    層B で bun/deno を追加したのに層A のサニタイズへ Bun.env/Deno.env を足さず、
 #    `bun -e "console.log(Bun.env.PORT)"` を誤遮断した（2026-07-25 review 指摘）。
 #    2つの一覧が別々に育つのがこの構造の弱点で、片方だけ増やすと必ず誤遮断か穴になる。
-READERS='(^|[^[:alnum:]_.-])(cat|less|more|head|tail|tac|strings|xxd|hexdump|od|vim|vi|nano|emacs|cp|scp|dd|base64|awk|sed|grep|rg|nl|bat|jq|diff|source|xargs|python|python3|node|nodejs|perl|ruby|php|deno|bun|tsx|ts-node)([^[:alnum:]_]|$)'
+#
+# 【境界条件】直後が `/` のときは一致させない（2026-07-26 是正）。
+# 語がコマンドではなく**パスの一部**として現れただけで誤遮断していた。実測例:
+#   ls -la /home/node/.ssh/        … `node` がホームディレクトリ名の一部
+#   find /usr/lib/python3.12/ …    … `python3` がライブラリパスの一部
+# この devcontainer のホームは /home/node であり、ユーザースコープ配布の実体もそこにあるため、
+# `~/` や `/home/node/` を含む操作が広範に巻き添えになっていた。
+# 直後が `/` `.` `-` なら「パス成分・ファイル名」、空白・行末・その他記号なら「コマンド」と判別できる。
+#   `/` … /home/node/ • /opt/ruby/lib/
+#   `.` … /usr/lib/python3.12/（`python3`+`.` という短い一致に後戻りするのを防ぐ）• deno.lock
+#   `-` … /opt/node-14/bin
+# 先頭側は `/` を許したままにする（`/usr/bin/python -c` のような絶対パス起動は遮断し続けるため）。
+# python はバージョン付き（python3.12）も1トークンとして拾う（`python3.12 -c` を取り逃さないため）。
+READERS='(^|[^[:alnum:]_.-])(cat|less|more|head|tail|tac|strings|xxd|hexdump|od|vim|vi|nano|emacs|cp|scp|dd|base64|awk|sed|grep|rg|nl|bat|jq|diff|source|xargs|python[0-9]*(\.[0-9]+)*|node|nodejs|perl|ruby|php|deno|bun|tsx|ts-node)([^[:alnum:]_/.-]|$)'
 
 # 7) .env系（.env.example/.sample/.template/.dist は対象外として先に除去。
 #    `(\.[a-zA-Z0-9_]+)*` は .env.production.local のような多段サフィックスにも一致させるため * とする）
@@ -198,8 +211,11 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		while IFS= read -r seg; do
 			printf '%s' "$seg" | grep -qE "$COMMON_OWNED" || continue
 			printf '%s' "$seg" | grep -qE "$skeleton_sync" && continue
-			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(rm|tee|cp|mv|dd|install|truncate|patch|rsync|python|python3|node|nodejs|perl|ruby|php|deno|bun)([^[:alnum:]_]|$)' ||
-			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_]|$).*-i'; then
+			# 境界条件は READERS と同じ理由で「直後が / なら不一致」とする（2026-07-26 是正）。
+			# `bash /home/node/.claude/scripts/guard-dangerous.sh` が `node` に誤一致して
+			# 遮断されていた（node はコマンドではなくホームディレクトリ名の一部）。
+			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(rm|tee|cp|mv|dd|install|truncate|patch|rsync|python[0-9]*(\.[0-9]+)*|node|nodejs|perl|ruby|php|deno|bun)([^[:alnum:]_/.-]|$)' ||
+			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_/.-]|$).*-i'; then
 				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
 			fi
 		done < <(printf '%s\n' "$STRIPPED" | awk '{gsub(/\|\||&&|[|;&]/, "\n"); print}')

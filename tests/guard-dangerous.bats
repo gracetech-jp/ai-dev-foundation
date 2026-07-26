@@ -829,3 +829,152 @@ decision_of() {
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }
+
+# ============================================================================
+# 誤一致の是正（2026-07-26）— 語が「コマンド」ではなく「パス成分」として現れた場合
+#
+# 実測で判明した既存の穴。READERS と ADR-009 の変更系コマンド一覧に含まれる語
+# （node / python / ruby / perl / deno / bun / php 等）が、パスやディレクトリ名の一部として
+# 現れただけで一致し、正当なコマンドを遮断していた。この devcontainer のホームは
+# /home/node で、ユーザースコープ配布の実体もそこにあるため、~/ や /home/node/ を含む操作が
+# 広範に巻き添えになっていた（14件を実測）。
+#
+# 是正: 語の直後が `/` `.` `-` のときは一致させない（パス成分・ファイル名と判別する）。
+# 先頭側は `/` を許したまま（`/usr/bin/python -c` の絶対パス起動は遮断し続ける）。
+# ============================================================================
+
+# ---- 許可: パス成分として現れただけのケース ----
+
+@test "誤一致是正: bash /home/node/.claude/scripts/guard-dangerous.sh を許可する" {
+	run run_guard_svc "bash /home/node/.claude/scripts/guard-dangerous.sh"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: bash /home/node/.claude/scripts/session-start-rules.sh を許可する" {
+	run run_guard_svc "bash /home/node/.claude/scripts/session-start-rules.sh"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: ls -la /home/node/ を許可する" {
+	run run_guard_svc "ls -la /home/node/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: 共通所有パスを引数に取る diff を許可する（node はパス成分）" {
+	run run_guard_svc "diff CLAUDE.md /home/node/.claude/x"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: echo で共通所有パスを表示するのを許可する" {
+	run run_guard_svc "echo /home/node/.claude/settings.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: ls -la /home/node/.ssh/ を許可する（ls は読取コマンドではない）" {
+	run run_guard "ls -la /home/node/.ssh/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /home/node/.aws/ を含む文字列の echo を許可する" {
+	run run_guard "echo '設定は /home/node/.aws/ にあります'"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: stat /home/node/.kube/config を許可する" {
+	run run_guard "stat /home/node/.kube/config"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: find /usr/lib/python3.12/ を許可する（バージョン付きパス成分）" {
+	run run_guard "find /usr/lib/python3.12/ -name '*.pem'"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /opt/ruby/lib/ 配下の ls を許可する" {
+	run run_guard "ls /opt/ruby/lib/id_rsa"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /srv/perl/secrets/ の ls を許可する" {
+	run run_guard "ls /srv/perl/secrets/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /opt/deno/secrets/ の ls を許可する" {
+	run run_guard "ls /opt/deno/secrets/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /opt/bun/secrets/ の ls を許可する" {
+	run run_guard "ls /opt/bun/secrets/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: /var/php/secrets/ の ls を許可する" {
+	run run_guard "ls /var/php/secrets/"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "誤一致是正: ハイフン付きバージョンディレクトリ /opt/node-14/ を許可する" {
+	run run_guard "ls /opt/node-14/bin/id_rsa"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+# ---- 遮断: 実際のインタプリタ起動は従来どおり（緩めすぎていないことの担保） ----
+
+@test "誤一致是正の回帰: node -e による秘密読取は引き続き deny" {
+	run run_guard "node -e \"console.log(require('fs').readFileSync('backend/.env','utf8'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: python -c による秘密読取は引き続き deny" {
+	run run_guard "python -c \"print(open('backend/.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: 絶対パス起動 /usr/bin/python -c も引き続き deny" {
+	run run_guard "/usr/bin/python -c \"print(open('backend/.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: バージョン付き python3.12 -c も引き続き deny" {
+	run run_guard "python3.12 -c \"print(open('backend/.env').read())\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: deno eval による秘密読取も引き続き deny" {
+	run run_guard "deno eval \"console.log(Deno.readTextFileSync('backend/.env'))\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: node -e による共通所有ファイル書込も引き続き deny" {
+	run run_guard_svc "node -e \"require('fs').writeFileSync('CLAUDE.md','x')\""
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "誤一致是正の回帰: ~/.netrc の cat も引き続き deny" {
+	run run_guard "cat ~/.netrc"
+	[ "$status" -eq 0 ]
+	[ "$(decision_of "$output")" = "deny" ]
+}
