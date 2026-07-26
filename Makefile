@@ -14,7 +14,7 @@ all: audit-all test req-coverage tier-tripwire
 # サービスリポジトリ側は各スタックのテストランナーで上書きする（bats は基盤の dogfood 専用）。
 test:
 	@echo "[test] 配布シェル資産の構文を検査します。"
-	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh; do bash -n "$$f" || exit 1; done
+	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh; do bash -n "$$f" || exit 1; done
 	@command -v bats >/dev/null 2>&1 || { echo "[test] ❌ bats が見つかりません（fail-closed。導入: apt-get install bats）"; exit 1; }
 	@echo "[test] bats を実行中..."
 	@bats tests/
@@ -25,7 +25,7 @@ test:
 lint:
 	@command -v shellcheck >/dev/null 2>&1 || { echo "[lint] ❌ shellcheck が見つかりません（fail-closed。導入: apt-get install shellcheck）"; exit 1; }
 	@echo "[lint] shellcheck を実行中..."
-	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh || exit 1
+	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh || exit 1
 	@echo "[lint] ✅ 警告なし"
 
 # カバレッジのフロア検証（ラチェット）。基盤リポはアプリコードが無いためスキップ。
@@ -50,7 +50,7 @@ req-coverage:
 # シンボルを空にするのは、基盤の機微面がファイル単位で確定しており、シンボル走査は統べる要件を
 # 持たないファイル（bats 等）を巻き込んで偽陽性を生むだけだから。サービス側は SERVICE.md 由来の値を渡す。
 tier-tripwire:
-	@TIER_TRIPWIRE_PATHS='.claude/scripts/guard-dangerous.sh|.claude/settings.json|profiles/_base/.claude/scripts/guard-dangerous.sh|profiles/_base/.claude/settings.json|profiles/*/files/.claude/settings.json' \
+	@TIER_TRIPWIRE_PATHS='.claude/scripts/guard-dangerous.sh|.claude/settings.json|profiles/_base/.claude/scripts/guard-dangerous.sh|profiles/_base/.claude/settings.json|profiles/*/files/.claude/settings.json|service-templates/claude/settings.json|service-templates/claude/scripts/guard-dangerous.sh' \
 	 TIER_TRIPWIRE_SYMBOLS="" \
 	 bash scripts/check-tier-tripwire.sh
 

@@ -1,0 +1,88 @@
+name: CI
+
+# スタック非依存の品質ゲート（docs/rules/quality-gates.md §4「CI 3ジョブ構成」）。
+# 各ジョブは make ターゲットだけを呼び、言語固有コマンドは一切書かない（中身は Makefile が委譲）。
+# gates は devcontainer（.devcontainer/Dockerfile）内で実行し、言語ランタイムの導入を
+# Dockerfile へ委譲する＝この YAML は編集不要でどのスタックでも動く。
+# ゲートは push 前フック（make install-hooks）と CI で二重化する（CIが最終防波堤）。
+#
+# 旧8ジョブ（lint/test/coverage/deps/req-coverage/tier-tripwire を独立ジョブ化）は
+# devcontainer ビルドが毎push×6回走るため、2026-07-23 に gates 1ジョブへ統合した
+# （ビルド×1。solo・MVP の CI コスト簡素化。強制力の設計: quality-gates.md §4）。
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # 品質ゲート統合ジョブ（devcontainer ビルドは1回だけ）。
+  # Makefile の `all` は lint/coverage/audit-deps を含まない union 未満のため使わず、
+  # 契約ターゲットを明示列挙する（黙って落ちるターゲットを作らない）。
+  #
+  # fail/soft の原則（quality-gates.md §4）: 「未実装(TODO) = soft signal、規約違反 = red」
+  # - TODO 判定は Makefile 雛形の契約「TODO ターゲットは exit 3」による。GNU make は
+  #   レシピ失敗時に自身の exit を 2 へ正規化するため、make が決定論的に出すエラー行
+  #   「make: *** [...] Error 3」で識別する（ターゲットの任意出力に依存しない＝誤 soft を排除）。
+  # - req-coverage / tier-tripwire は soft 化しない（要件トレーサビリティは fail-closed。
+  #   設定エラー exit 2 も含め無条件 red）。
+  # - coverage は .coverage-floor=0 の間は soft。実装して floor>0 にした時点で自動 red 化。
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tier-tripwire の差分基準（origin/main）に全履歴が必要
+      - uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: |
+            set -u
+            fail=0
+            is_todo() { printf '%s\n' "$1" | grep -qE '^make(\[[0-9]+\])?: \*\*\* .* Error 3$'; }
+            run_gate() { # <target> <hard|softable>
+              local out rc
+              out="$(make "$1" 2>&1)"; rc=$?
+              printf '%s\n' "$out"
+              if [ "$rc" -eq 0 ]; then echo "[gates] ✅ $1"; return 0; fi
+              if [ "$2" = "softable" ] && is_todo "$out"; then
+                echo "::warning::[gates] $1 は未実装(TODO=exit 3)のため soft 扱い（実装すると自動で red 化）"
+                return 0
+              fi
+              echo "[gates] ❌ $1 失敗（red）"
+              fail=1
+            }
+            run_gate lint softable
+            run_gate test softable
+            floor="$(cat .coverage-floor 2>/dev/null || echo 0)"
+            if [ "$floor" = "0" ]; then
+              # floor=0 の間はラチェットが何も守っていないため soft（floor>0 で下の red 経路へ自動移行）
+              make coverage || echo "::warning::[gates] coverage は floor=0 のため soft（make coverage 実装かつ floor>0 で自動 red 化）"
+            else
+              run_gate coverage hard
+            fi
+            run_gate audit-deps softable
+            run_gate req-coverage hard
+            run_gate tier-tripwire hard
+            exit "$fail"
+
+  # 整合性監査。雛形の audit-consistency.sh は純 bash/grep でツールチェーン不要のため
+  # 素の runner で実行する（最速・完全中立）。
+  # 注意: 層(2)構造監査・層(3)スキーマdrift をスタックツールや DB で実装した場合は、
+  #       この audit ジョブを gates と同じ devcontainer 方式に寄せ、
+  #       drift 検査に DB が要るなら services: ブロックを足すこと。
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make audit-all
+
+  # 秘密のコミット防止（security.md）。作業ツリーを gitleaks でスキャンする（スタック非依存）。
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (working tree)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.18.4 detect --source=/repo --no-git --redact --no-banner

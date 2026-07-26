@@ -1,0 +1,29 @@
+name: tier-tripwire
+description: Tier デスカレーションをコード実態から裏取りする（機微変更に Tier-S 要件が無ければ赤）
+inputs:
+  sensitive-paths:
+    description: 機微コードのパス glob（| 区切り）。空にする場合は機微面なし宣言が必要
+    required: false
+    default: ""
+  sensitive-symbols:
+    description: 機微識別子の拡張正規表現（| で alternation 可）
+    required: false
+    default: ""
+  self-re:
+    description: 機微パターンの定義元ファイルを除外する正規表現（任意）
+    required: false
+    default: ""
+  project-root:
+    description: 検証対象リポジトリのルート
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: composite
+  steps:
+    # 差分基準に origin/main を使うため、呼び出し側は actions/checkout に fetch-depth: 0 を指定すること。
+    - shell: bash
+      env:
+        TIER_TRIPWIRE_PATHS: ${{ inputs.sensitive-paths }}
+        TIER_TRIPWIRE_SYMBOLS: ${{ inputs.sensitive-symbols }}
+        TIER_TRIPWIRE_SELF_RE: ${{ inputs.self-re }}
+      run: bash "$GITHUB_ACTION_PATH/check-tier-tripwire.sh" "${{ inputs.project-root }}"

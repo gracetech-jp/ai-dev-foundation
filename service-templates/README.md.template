@@ -1,0 +1,23 @@
+# SERVICE_NAME
+
+## セットアップ
+```bash
+git clone <repo-url> ~/projects/SERVICE_NAME
+cd ~/projects/SERVICE_NAME
+code .
+# 「Reopen in Container」をクリック
+cp .env.example .env
+claude
+```
+
+## 主要コマンド
+品質ゲートの共通入口（スタック非依存）。詳細・開発用コマンドは SERVICE.md を参照。
+```bash
+make test        # テスト実行
+make lint        # 静的解析
+make audit-all   # 整合性監査一式
+```
+
+## 共通ルール更新時
+ai-dev-foundation の CLAUDE.md・docs/rules/ が更新された場合は、
+`./scripts/sync-from-common.sh <共通リポのパス> --apply` で順輸入してください（詳細: docs/rules/backport.md）。

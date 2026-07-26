@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# git pre-push フック — push 前に整合性監査・単体テスト・要件トレーサビリティ・Tierトリップワイヤの4段を実行
+# （make all と同じ構成。docs/rules/quality-gates.md §2）
+# 基盤リポでは4段目は「機微面なし」宣言（docs/requirements/.tier-tripwire-none）で正当スキップし、
+# サービス側では SERVICE.md 由来の機微パターンで実発動する（同一ファイルを配布・ADR-008）。
+# インストール: make install-hooks
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] 整合性監査（grep整合性・構造監査・マイグレーションdrift）を実行中..."
+if ! (cd "$ROOT" && make audit-all); then
+  echo ""
+  echo "[pre-push] ❌ 整合性監査が失敗しました。push をブロックします。"
+  echo "           問題を修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 整合性監査通過"
+
+echo ""
+echo "[pre-push] 単体テストを実行中..."
+if ! (cd "$ROOT" && make test); then
+  echo ""
+  echo "[pre-push] ❌ 単体テストが失敗しました。push をブロックします。"
+  echo "           テストを修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 単体テスト通過"
+
+echo ""
+echo "[pre-push] 要件トレーサビリティ（req-coverage）を検証中..."
+if ! (cd "$ROOT" && make req-coverage); then
+  echo ""
+  echo "[pre-push] ❌ 要件トレーサビリティ検証が失敗しました。push をブロックします。"
+  echo "           未カバー要件・批准状態を修正してから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ 要件トレーサビリティ通過"
+
+echo ""
+echo "[pre-push] Tierトリップワイヤを検証中..."
+if ! (cd "$ROOT" && make tier-tripwire); then
+  echo ""
+  echo "[pre-push] ❌ Tierトリップワイヤ検証が失敗しました。push をブロックします。"
+  echo "           機微変更に対応する Tier-S 要件を整えてから再度 push してください。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ Tierトリップワイヤ通過"
+

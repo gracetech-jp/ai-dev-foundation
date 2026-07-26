@@ -10,8 +10,11 @@ setup() {
 make_sandbox() {
 	SB="$BATS_TEST_TMPDIR/sb"
 	mkdir -p "$SB/.claude" "$SB/docs"
+	# common / templates / マーカーは検査層(10)（参照方式への移行中の複製同期検査）の対象。
+	# 複製し忘れると層(10)がサンドボックスで必ず落ちる（2026-07-26 フェーズ0で追加）。
 	for item in Makefile CLAUDE.md .backport-manifest \
-	            .req-coverage-baseline scripts profiles .github .devcontainer; do
+	            .req-coverage-baseline scripts profiles .github .devcontainer \
+	            common service-templates .ai-dev-foundation-root; do
 		cp -a "$REPO/$item" "$SB/$item"
 	done
 	cp -a "$REPO/docs/rules" "$REPO/docs/requirements" "$REPO/docs/service-rules" "$REPO/docs/decisions" "$SB/docs/"
@@ -139,4 +142,39 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	run audit
 	[ "$status" -eq 1 ]
 	[[ "$output" == *"必須ジョブ 'tier-tripwire' がありません"* ]]
+}
+
+# ---- 赤: 検査層(10) 参照方式への移行中の複製同期（2026-07-26 フェーズ0） ----
+# 移行期は正本(common/ ・ service-templates/)と旧パスの実体が併存する。片方だけ育つ乖離を機械で止める。
+
+@test "赤: 旧パス側のゲートスクリプトだけ改変すると移行複製の不一致で fail" {
+	make_sandbox
+	echo "# drift" >> "$SB/scripts/check-coverage.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"移行複製が不一致"*"check-coverage.sh"* ]]
+}
+
+@test "赤: composite action 同梱スクリプトだけ改変すると移行複製の不一致で fail" {
+	make_sandbox
+	echo "# drift" >> "$SB/.github/actions/tier-tripwire/check-tier-tripwire.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"移行複製が不一致"* ]]
+}
+
+@test "赤: templates 側だけ改変すると profiles/_base との不一致で fail" {
+	make_sandbox
+	echo "# drift" >> "$SB/service-templates/scripts/audit-consistency.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"移行複製が不一致"*"service-templates/"* ]]
+}
+
+@test "赤: マーカーを消すと参照方式の起点欠落で fail" {
+	make_sandbox
+	rm "$SB/.ai-dev-foundation-root"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"マーカー"* ]]
 }

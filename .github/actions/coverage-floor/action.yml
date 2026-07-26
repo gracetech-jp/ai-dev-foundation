@@ -1,0 +1,15 @@
+name: coverage-floor
+description: 計測済みカバレッジを .coverage-floor と比較する（一方向ラチェット）
+inputs:
+  measured:
+    description: 計測したカバレッジ率（整数または小数）。計測自体はプロジェクト側の責務
+    required: true
+  project-root:
+    description: 検証対象リポジトリのルート（.coverage-floor の所在）
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: bash "$GITHUB_ACTION_PATH/check-coverage.sh" "${{ inputs.measured }}" "${{ inputs.project-root }}"

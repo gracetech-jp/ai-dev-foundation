@@ -1,0 +1,29 @@
+name: req-coverage
+description: 要件↔テストのトレーサビリティ検証（未カバー要件・妥当性欠落・dangling を検出）
+inputs:
+  test-paths:
+    description: テストを探索するパス（空白区切り）。未指定だとスクリプトが fail-closed で失敗する
+    required: true
+  req-marker-re:
+    description: 要件マーカーの正規表現（任意。既定はスクリプト側）
+    required: false
+    default: ""
+  adv-marker-re:
+    description: adversarial マーカーの正規表現（任意。既定はスクリプト側）
+    required: false
+    default: ""
+  project-root:
+    description: 検証対象リポジトリのルート
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: composite
+  steps:
+    # スクリプトは action ディレクトリに同梱してあるため、共通リポジトリの追加 checkout も
+    # トークンも不要（$GITHUB_ACTION_PATH は action 自身の展開先を指す）。
+    - shell: bash
+      env:
+        REQ_TEST_PATHS: ${{ inputs.test-paths }}
+        REQ_MARKER_RE: ${{ inputs.req-marker-re }}
+        ADV_MARKER_RE: ${{ inputs.adv-marker-re }}
+      run: bash "$GITHUB_ACTION_PATH/check-requirements-coverage.sh" "${{ inputs.project-root }}"

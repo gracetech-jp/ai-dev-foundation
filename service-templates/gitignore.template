@@ -1,0 +1,22 @@
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/agents/
+!.claude/agents/**
+.env
+# 秘密ファイルは誤コミット防止のため追跡しない（読取は settings.json deny と guard で別途遮断）
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.DS_Store
+*.log
+CLAUDE.local.md
+.sync-backup-*/
+# 各スタックの依存ディレクトリ・ビルド成果物はここに追記
+# 例: node_modules/  dist/  __pycache__/  target/  vendor/  bin/

@@ -113,3 +113,23 @@ mkreq() { # <id> <tier> <status> <pathglob>
 		TIER_TRIPWIRE_SELF_RE='^Makefile$' TRIPWIRE_BASE="$BASE" bash "$SUT"
 	[ "$status" -eq 1 ]
 }
+
+# ---- ROOT 引数（参照方式・2026-07-26 フェーズ0） ----
+# 共通リポの common/scripts/ に置いたスクリプトから、別ディレクトリのリポジトリを検証できること。
+# 位置からの導出（BASH_SOURCE）だけだと、スクリプトと検証対象が別リポになった瞬間に破綻する。
+
+@test "ROOT引数: リポジトリ外のスクリプトから対象リポを指定して検証できる" {
+	EXT="$BATS_TEST_DIRNAME/../common/scripts/check-tier-tripwire.sh"
+	printf 'x\n' >> "$FIX/src/util/b.txt"
+	commit
+	run env TIER_TRIPWIRE_PATHS='src/sensitive/**' TIER_TRIPWIRE_SYMBOLS='SECRETSYM' TRIPWIRE_BASE="$BASE" \
+		bash "$EXT" "$FIX"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"機微パス/シンボルに触れる変更はありません"* ]]
+}
+
+@test "ROOT引数: 存在しないルートを渡すと exit 2（fail-closed）" {
+	EXT="$BATS_TEST_DIRNAME/../common/scripts/check-tier-tripwire.sh"
+	run env TIER_TRIPWIRE_PATHS='src/sensitive/**' bash "$EXT" "$BATS_TEST_TMPDIR/nope"
+	[ "$status" -eq 2 ]
+}

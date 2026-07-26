@@ -307,6 +307,58 @@ if [ -f "$REQ_README" ]; then
 	done
 fi
 
+echo "[audit] (10) 参照方式への移行中の複製同期検査（旧パス ↔ common/ ↔ service-templates/ ↔ actions/）..."
+# 参照方式への移行（フェーズ0）で、共通資産の正本を common/ と service-templates/ へ移した。
+# ただし既存の配布機構（sync-from-common.sh は cp -a を使うためシンボリックリンクを配布先へ
+# そのまま複製してしまう／new-service.sh は profiles/_base を読む）を撤去できないフェーズ0では、
+# 旧パスに実体を残さざるを得ない。放置すると「2箇所が別々に育って誰も気づかない」乖離になるため、
+# 移行期間中だけ diff 一致を機械強制する。フェーズ5で旧パスごとこの層を撤去する。
+# 追加時は「なぜこの対を持つのか」を1行残すこと。
+MIGRATION_PAIRS=(
+	# ゲートスクリプト: 正本は common/scripts/。旧 scripts/ は .backport-manifest の配布対象のため残す
+	"common/scripts/check-coverage.sh:scripts/check-coverage.sh"
+	"common/scripts/check-requirements-coverage.sh:scripts/check-requirements-coverage.sh"
+	"common/scripts/check-tier-tripwire.sh:scripts/check-tier-tripwire.sh"
+	"common/scripts/pre-push:scripts/pre-push"
+	"common/scripts/commit-msg:scripts/commit-msg"
+	# ベースイメージ: 正本は common/docker/。profiles/_base は new-service.sh が読むため残す
+	"common/docker/Dockerfile.base:profiles/_base/.devcontainer/Dockerfile"
+	# composite action の同梱スクリプト: 正本は common/scripts/（$GITHUB_ACTION_PATH から読むため同梱が必須）
+	"common/scripts/check-requirements-coverage.sh:.github/actions/req-coverage/check-requirements-coverage.sh"
+	"common/scripts/check-tier-tripwire.sh:.github/actions/tier-tripwire/check-tier-tripwire.sh"
+	"common/scripts/check-coverage.sh:.github/actions/coverage-floor/check-coverage.sh"
+)
+for pair in "${MIGRATION_PAIRS[@]}"; do
+	src="${pair%%:*}"; dst="${pair#*:}"
+	if [ ! -f "$ROOT/$src" ]; then
+		report "移行複製の正本が存在しない: $src（フェーズ0の構成が壊れています）"
+	elif [ ! -f "$ROOT/$dst" ]; then
+		report "移行複製の複製側が存在しない: $dst（正本 $src に対応する旧パスが消えています）"
+	elif ! diff -q "$ROOT/$src" "$ROOT/$dst" >/dev/null 2>&1; then
+		report "移行複製が不一致: $src ↔ $dst（片方だけ更新された。diff で確認して揃える）"
+	fi
+done
+# service-templates/ ↔ profiles/_base/：service-templates/ が正本。.editorconfig と テンプレート5件は
+# 「参照に変わるもの」として移送対象外のため、profiles/_base 側にのみ存在してよい。
+#
+# パス対応: service-templates/claude/... ↔ profiles/_base/.claude/...
+# 先頭のドットを落としてあるのは、`.claude/skills/` というパスが作業ディレクトリ配下にあると
+# Claude Code がそこをスコープ付きスキルとしてオンデマンドに読み込むため（実測）。
+# 配布前の雛形が基盤セッションのスキル一覧に混ざるのを構造的に防ぐ（2026-07-26）。
+# guard-shim.sh は新方式固有で _base に対応物が無いため対象外。
+while IFS= read -r rel; do
+	[ -n "$rel" ] || continue
+	base_rel="$rel"
+	case "$rel" in claude/*) base_rel=".$rel" ;; esac
+	if [ ! -f "$ROOT/profiles/_base/$base_rel" ]; then
+		report "service-templates/$rel に対応する profiles/_base/$base_rel がありません（移行期は両方必要）"
+	elif ! diff -q "$ROOT/service-templates/$rel" "$ROOT/profiles/_base/$base_rel" >/dev/null 2>&1; then
+		report "移行複製が不一致: service-templates/$rel ↔ profiles/_base/$base_rel（片方だけ更新された）"
+	fi
+done < <(cd "$ROOT/service-templates" 2>/dev/null && find . -type f ! -name 'guard-shim.sh' | sed 's|^\./||' | sort)
+# マーカーの実在（全解決の起点。消えると Make も Docker も番人フックも解決不能になる）
+[ -f "$ROOT/.ai-dev-foundation-root" ] || report "マーカー .ai-dev-foundation-root がありません（参照方式の全解決が失敗します）"
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

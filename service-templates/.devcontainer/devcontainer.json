@@ -1,0 +1,25 @@
+{
+  "name": "SERVICE_NAME Dev Container",
+  "build": { "dockerfile": "Dockerfile" },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated"
+  ],
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "eamodio.gitlens"
+        // このサービスのスタックに合ったフォーマッタ拡張を追加する
+        // 例: JS/TS→"esbenp.prettier-vscode" / Python→"ms-python.black-formatter" / Go→"golang.go"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/postCreate.sh"
+}

@@ -97,3 +97,18 @@ rc() {
 	run rc
 	[ "$status" -eq 2 ]
 }
+
+# ---- ROOT 引数（参照方式・2026-07-26 フェーズ0） ----
+
+@test "ROOT引数: リポジトリ外のスクリプトから対象リポを指定して検証できる" {
+	EXT="$BATS_TEST_DIRNAME/../common/scripts/check-requirements-coverage.sh"
+	run env REQ_TEST_PATHS=tests REQ_MARKER_RE='REQMARK[[:space:]]+R-[0-9]+' ADV_MARKER_RE='ADVMARK[[:space:]]+R-[0-9]+' \
+		bash "$EXT" "$FIX"
+	[ "$status" -eq 0 ]
+}
+
+@test "ROOT引数: 存在しないルートを渡すと exit 2（fail-closed）" {
+	EXT="$BATS_TEST_DIRNAME/../common/scripts/check-requirements-coverage.sh"
+	run env REQ_TEST_PATHS=tests bash "$EXT" "$BATS_TEST_TMPDIR/nope"
+	[ "$status" -eq 2 ]
+}
