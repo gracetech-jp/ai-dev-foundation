@@ -75,6 +75,35 @@ setup() {
 	[ "$output" = "DELEGATED_OK" ]
 }
 
+@test "shim: マーカーはあるが委譲先が存在しなければ exit 2（fail-open にしない）" {
+	# 実測で見つかった穴。`exec bash <不在パス>` は exit 127 で終わり、PreToolUse は
+	# exit 2 以外をブロックと解釈しないため素通ししていた。
+	cd "$W/foundation/projects/svc"
+	run bash "$SHIM"
+	[ "$status" -eq 2 ]
+	[[ "$output" == *"委譲先のガードが読めない"* ]]
+}
+
+@test "shim: 委譲先が読めない（権限なし）場合も exit 2" {
+	mkdir -p "$W/foundation/.claude/scripts"
+	printf '#!/usr/bin/env bash\nexit 0\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
+	chmod 000 "$W/foundation/.claude/scripts/guard-dangerous.sh"
+	cd "$W/foundation/projects/svc"
+	run bash "$SHIM"
+	chmod 644 "$W/foundation/.claude/scripts/guard-dangerous.sh"
+	[ "$status" -eq 2 ]
+}
+
+@test "shim: 委譲先の終了コードをそのまま返す（deny の 0 を握りつぶさない）" {
+	mkdir -p "$W/foundation/.claude/scripts"
+	printf '#!/usr/bin/env bash\necho DELEGATED\nexit 0\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
+	chmod +x "$W/foundation/.claude/scripts/guard-dangerous.sh"
+	cd "$W/foundation/projects/svc"
+	run bash "$SHIM"
+	[ "$status" -eq 0 ]
+	[ "$output" = "DELEGATED" ]
+}
+
 @test "shim: 委譲先に標準入力（フックJSON）が渡る" {
 	mkdir -p "$W/foundation/.claude/scripts"
 	printf '#!/usr/bin/env bash\ncat\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
