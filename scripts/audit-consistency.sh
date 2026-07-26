@@ -346,8 +346,14 @@ done
 # Claude Code がそこをスコープ付きスキルとしてオンデマンドに読み込むため（実測）。
 # 配布前の雛形が基盤セッションのスキル一覧に混ざるのを構造的に防ぐ（2026-07-26）。
 # guard-shim.sh は新方式固有で _base に対応物が無いため対象外。
+#
+# NEW_FORM: 参照方式へ**意図的に書き換えた**雛形。_base 側は旧方式のまま（new-service.sh が
+# まだ _base を読むため）で、両者が一致しないのが正しい状態。追加時は理由を1行残すこと。
+# フェーズ5で _base を撤去した時点でこの除外ごと消える。
+NEW_FORM_RE='^(Makefile|\.devcontainer/devcontainer\.json|\.github/workflows/ci\.yml|claude/settings\.json)$'
 while IFS= read -r rel; do
 	[ -n "$rel" ] || continue
+	printf '%s' "$rel" | grep -qE "$NEW_FORM_RE" && continue
 	base_rel="$rel"
 	case "$rel" in claude/*) base_rel=".$rel" ;; esac
 	if [ ! -f "$ROOT/profiles/_base/$base_rel" ]; then

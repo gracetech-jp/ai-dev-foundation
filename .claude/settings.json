@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/session-start-rules.sh\"",
+            "command": "bash /home/node/.claude/scripts/session-start-rules.sh",
             "timeout": 10,
             "statusMessage": "プロジェクトルールを読み込み中..."
           }
@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/guard-dangerous.sh\"",
+            "command": "bash /home/node/.claude/scripts/guard-dangerous.sh",
             "timeout": 5
           }
         ]

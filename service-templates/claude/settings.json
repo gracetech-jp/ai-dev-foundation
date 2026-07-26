@@ -1,4 +1,17 @@
 {
+  "$comment": [
+    "参照方式（2026-07-26 フェーズ1〜）のプロジェクト設定。",
+    "共通の deny（破壊的コマンド・秘密ファイル読取）と共通フック・agents・skills は、",
+    "共通基盤の .claude を /home/node/.claude へマウントすることでユーザースコープとして効く。",
+    "権限ルールはスコープをまたいでマージされ、deny は allow に勝つことを実測で確認済み。",
+    "したがってこのファイルには**このプロジェクト固有の allow / ask だけ**を書く。",
+    "共通 deny をここに複製しないこと（複製すると更新が届かず、乖離しても誰も気づけない）。",
+    "",
+    "PreToolUse の guard-shim は番人フック。共通基盤が見えない（マウント設定漏れ等）状態を",
+    "無警告で素通しさせず exit 2 で止めるためにある。共通側の絶対パスフックとは役割が違う:",
+    "  共通側（ユーザースコープ・絶対パス）… 起動位置に関係なく必ず発火する本体",
+    "  こちら（プロジェクト側・番人）      … 共通が見えないときに止める最後の砦"
+  ],
   "permissions": {
     "allow": [
       "Bash(git diff:*)",
@@ -11,111 +24,18 @@
     ],
     "ask": [
       "Bash(*migrate*)",
-      "Bash(npm install:*)",
-      "Bash(npm ci:*)",
-      "Bash(pnpm add:*)",
-      "Bash(yarn add:*)",
-      "Bash(pip install:*)",
-      "Bash(poetry add:*)",
-      "Bash(go get:*)",
-      "Bash(cargo add:*)",
-      "Bash(gem install:*)",
-      "Bash(bundle add:*)",
-      "Bash(composer require:*)",
       "Bash(gh workflow run:*)"
-    ],
-    "deny": [
-      "Bash(git push:*)",
-      "Bash(rm -rf:*)",
-      "Bash(sudo rm:*)",
-      "Bash(git reset --hard:*)",
-      "Bash(git checkout -- *)",
-      "Bash(git clean -f*)",
-      "Bash(git branch -D:*)",
-      "Read(.env)",
-      "Read(.env.local)",
-      "Read(.env.*.local)",
-      "Read(.env.production)",
-      "Read(.env.staging)",
-      "Read(.env.development)",
-      "Read(.env.test)",
-      "Read(**/.env)",
-      "Read(**/.env.local)",
-      "Read(**/.env.*.local)",
-      "Read(**/.env.production)",
-      "Read(**/.env.staging)",
-      "Read(**/.env.development)",
-      "Read(**/.env.test)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Read(**/id_rsa)",
-      "Read(**/id_ed25519)",
-      "Read(**/id_ecdsa)",
-      "Read(**/id_dsa)",
-      "Read(**/*.p12)",
-      "Read(**/*.pfx)",
-      "Read(**/.npmrc)",
-      "Read(**/secrets/**)",
-      "Read(**/.ssh/**)",
-      "Read(**/.aws/**)",
-      "Read(**/.config/gcloud/**)",
-      "Read(**/.netrc)",
-      "Read(**/.git-credentials)",
-      "Read(**/.kube/**)",
-      "Read(**/.docker/config.json)",
-      "Write(CLAUDE.md)",
-      "Edit(CLAUDE.md)",
-      "Write(docs/rules/**)",
-      "Edit(docs/rules/**)",
-      "Write(.claude/settings.json)",
-      "Edit(.claude/settings.json)",
-      "Write(.claude/scripts/guard-dangerous.sh)",
-      "Edit(.claude/scripts/guard-dangerous.sh)",
-      "Write(.claude/scripts/session-start-rules.sh)",
-      "Edit(.claude/scripts/session-start-rules.sh)",
-      "Write(.claude/skills/extract-requirements/**)",
-      "Edit(.claude/skills/extract-requirements/**)",
-      "Write(.claude/skills/verify-request/**)",
-      "Edit(.claude/skills/verify-request/**)",
-      "Write(.claude/agents/consistency-auditor.md)",
-      "Edit(.claude/agents/consistency-auditor.md)",
-      "Write(scripts/pre-push)",
-      "Edit(scripts/pre-push)",
-      "Write(scripts/commit-msg)",
-      "Edit(scripts/commit-msg)",
-      "Write(scripts/check-coverage.sh)",
-      "Edit(scripts/check-coverage.sh)",
-      "Write(scripts/check-requirements-coverage.sh)",
-      "Edit(scripts/check-requirements-coverage.sh)",
-      "Write(scripts/check-tier-tripwire.sh)",
-      "Edit(scripts/check-tier-tripwire.sh)",
-      "Write(scripts/sync-from-common.sh)",
-      "Edit(scripts/sync-from-common.sh)",
-      "Write(.claude/agents/security-reviewer.md)",
-      "Edit(.claude/agents/security-reviewer.md)"
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/session-start-rules.sh\"",
-            "timeout": 10,
-            "statusMessage": "プロジェクトルールを読み込み中..."
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/guard-dangerous.sh\"",
-            "timeout": 5
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/guard-shim.sh\"",
+            "timeout": 10
           }
         ]
       }

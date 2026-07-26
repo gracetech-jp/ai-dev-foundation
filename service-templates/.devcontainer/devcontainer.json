@@ -1,11 +1,42 @@
 {
+  // 参照方式（2026-07-26 フェーズ1〜）のマウント設計。
+  //
+  // 前提: このリポジトリは共通基盤リポジトリ配下の projects/SERVICE_NAME に置かれる。
+  //   <共通基盤>/
+  //   ├── .ai-dev-foundation-root / CLAUDE.md / docs/ / common/ / .claude/
+  //   └── projects/SERVICE_NAME/   ← このリポジトリ（localWorkspaceFolder）
+  //
+  // 設計の要点:
+  //   1. コンテナ内で「共通基盤ルート/projects/SERVICE_NAME」という**同じ位置関係**を再現する。
+  //      Claude Code の CLAUDE.md 遡り読み込みと、マーカー探索がこれに依存する（実測済み）。
+  //   2. 共通基盤は**必要な部分だけを readonly** で貼る。ルートを丸ごと貼ると
+  //      projects/ ごと入り、**兄弟プロジェクトの .env が読めてしまう**。絶対に貼らないこと。
+  //   3. 共通の .claude はユーザースコープ（/home/node/.claude）へ貼る。これにより
+  //      共通 deny・フック・agents・skills が**起動ディレクトリに関係なく**効く（実測済み）。
+  //      Claude Code がセッション情報を書き込むため、ここだけは書き込み可にする。
   "name": "SERVICE_NAME Dev Container",
   "build": { "dockerfile": "Dockerfile" },
-  "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+
+  // 自プロジェクトを、共通基盤配下の正しい位置に書き込み可でマウントする
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/foundation/projects/SERVICE_NAME,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspaces/foundation/projects/SERVICE_NAME",
+
   "mounts": [
-    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated"
+    // 共通の .claude をユーザースコープへ（共通 deny・フック・agents・skills の配布経路）
+    "source=${localWorkspaceFolder}/../../.claude,target=/home/node/.claude,type=bind,consistency=delegated",
+
+    // 共通基盤の参照部分。いずれも readonly（プロジェクトから共通を書き換えさせない）
+    "source=${localWorkspaceFolder}/../../.ai-dev-foundation-root,target=/workspaces/foundation/.ai-dev-foundation-root,type=bind,readonly",
+    "source=${localWorkspaceFolder}/../../CLAUDE.md,target=/workspaces/foundation/CLAUDE.md,type=bind,readonly",
+    "source=${localWorkspaceFolder}/../../docs,target=/workspaces/foundation/docs,type=bind,readonly",
+    "source=${localWorkspaceFolder}/../../common,target=/workspaces/foundation/common,type=bind,readonly",
+
+    // 兄弟プロジェクト（../../projects/ 配下）は**絶対にマウントしない**。
+    // 貼ると他サービスの .env・認証情報がこのコンテナから読めてしまう。
+
+    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
   ],
+
   "remoteUser": "node",
   "customizations": {
     "vscode": {
