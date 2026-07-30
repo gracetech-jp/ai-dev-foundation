@@ -10,6 +10,20 @@ cp .env.example .env
 claude
 ```
 
+## ディレクトリ構成
+```
+SERVICE_NAME/
+├── docs/            # 要件・ADR・固有ルール → docs 配下の各 README
+├── scripts/         # このリポジトリの運用スクリプト
+├── PROJECT.md       # 技術スタック・環境変数・固有ルール
+├── Makefile         # 品質ゲートの入口（make all / test / audit-all …）
+└── README.md        # このファイル
+```
+> **このツリーは実態に合わせて書き換えること。** 何がどこにあるかは**各階層の README がツリーで
+> 持つ**のが規約（`docs/rules/repo-layout.md`「所在の管理は各階層の README が正本」）。
+> 記載は自ディレクトリの直下までとし、下位は下位の README に委ねる（同じ構成を2箇所に書くと
+> 必ず片方が古くなる）。ルール文書や `PROJECT.md` の側に構成を列挙しない。
+
 ## 主要コマンド
 品質ゲートの共通入口（スタック非依存）。詳細・開発用コマンドは PROJECT.md を参照。
 ```bash

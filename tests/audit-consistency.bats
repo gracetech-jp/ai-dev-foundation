@@ -12,12 +12,13 @@ make_sandbox() {
 	mkdir -p "$SB/.claude" "$SB/docs"
 	# common / templates / マーカーは検査層(10)（参照方式への移行中の複製同期検査）の対象。
 	# 複製し忘れると層(10)がサンドボックスで必ず落ちる（2026-07-26 フェーズ0で追加）。
-	for item in Makefile CLAUDE.md \
+	for item in Makefile CLAUDE.md README.md \
 	            .req-coverage-baseline scripts profiles .github .devcontainer \
 	            common service-templates .ai-dev-foundation-root; do
 		cp -a "$REPO/$item" "$SB/$item"
 	done
 	cp -a "$REPO/docs/rules" "$REPO/docs/requirements" "$REPO/docs/service-rules" "$REPO/docs/decisions" "$SB/docs/"
+	cp "$REPO/docs/README.md" "$SB/docs/"   # 検査層(12) 所在の正本（各階層 README）の対象
 	cp "$REPO/.claude/settings.json" "$SB/.claude/"
 	cp -a "$REPO/.claude/scripts" "$REPO/.claude/skills" "$REPO/.claude/agents" "$SB/.claude/"
 }
@@ -189,4 +190,58 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	run audit
 	[ "$status" -eq 1 ]
 	[[ "$output" == *"マーカー"* ]]
+}
+
+# ---- 赤: 検査層(11) 参照方式の退化検出（2026-07-30 ADR-010） ----
+# 共通スクリプトの実体は common/scripts/ のみ。ドキュメント・雛形が複製前提のパスで案内すると
+# 読者が存在しないファイルを探すことになる。移行時に実際に取り残しが出たため常設した検査。
+
+@test "赤: docs/rules が共通スクリプトを複製前提のパスで案内すると退化検出で fail" {
+	make_sandbox
+	echo '判定は `scripts/check-coverage.sh` が行う。' >> "$SB/docs/rules/quality-gates.md"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"参照方式の退化"* ]]
+	[[ "$output" == *"quality-gates.md"* ]]
+}
+
+@test "赤: 雛形 PROJECT.md.template が複製前提のパスで案内すると退化検出で fail" {
+	make_sandbox
+	echo '照合エンジンは `scripts/check-tier-tripwire.sh`。' >> "$SB/profiles/_base/PROJECT.md.template"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"参照方式の退化"* ]]
+	[[ "$output" == *"PROJECT.md.template"* ]]
+}
+
+@test "緑: settings.json の deny 表記（複製を作らせないロック）は退化扱いしない" {
+	make_sandbox
+	# Edit(scripts/pre-push) はバッククォート付きのパス案内ではなくロックの定義。
+	# これを退化と誤検出すると、ロックを外す方向へ人を誘導してしまう。
+	grep -q 'Edit(scripts/pre-push)' "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 0 ]
+}
+
+# ---- 赤/緑: 検査層(12) 所在の正本（各階層 README とツリー）（2026-07-30 決定） ----
+# 「何がどこにあるか」は各階層の README が正本。README かツリーが欠けると、所在の記述が
+# またルール文書側へ散り、構成変更のたびに N 文書を追う羽目になる。
+
+@test "赤: 階層 README が消えると所在の正本欠落で fail" {
+	make_sandbox
+	rm "$SB/common/README.md"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"common/README.md がありません"* ]]
+}
+
+@test "赤: 階層 README からツリーが消えると fail" {
+	make_sandbox
+	# ツリーの根の行（`docs/decisions/`）だけを削り、README 自体は残す
+	grep -vxF 'docs/decisions/' "$SB/docs/decisions/README.md" > "$SB/t.md"
+	mv "$SB/t.md" "$SB/docs/decisions/README.md"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"自ディレクトリのツリーがありません"* ]]
+	[[ "$output" == *"docs/decisions/README.md"* ]]
 }

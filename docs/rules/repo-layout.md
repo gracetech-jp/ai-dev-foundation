@@ -22,12 +22,39 @@
 | `.github/workflows/ci.yml` | CI 多段ゲート（詳細: `docs/rules/quality-gates.md` §4） | 骨格配布 |
 | `.editorconfig` | エディタ非依存のスタイル強制（詳細: `docs/rules/code-style.md`） | 骨格配布 |
 | `Makefile` | 品質ゲートのターゲット契約（詳細: `docs/rules/quality-gates.md` §1） | 骨格配布 |
-| `scripts/pre-push` | push前ゲート（`make audit-all`＋`make test`） | 共通正本 |
-| `scripts/commit-msg` | Conventional Commits の機械強制（詳細: `docs/rules/git.md`） | 共通正本 |
-| `scripts/check-coverage.sh` | カバレッジのフロア判定（詳細: `docs/rules/quality-gates.md` §5） | 共通正本 |
 | `scripts/audit-consistency.sh` | 整合性監査（詳細: `docs/rules/consistency.md`） | 雛形 |
 | `.coverage-floor` | カバレッジのフロア値（サービスがラチェット） | 雛形初期値 |
 | `.gitignore` `.env.example` `README.md` | 追跡除外・環境変数雛形・入口 | 雛形から生成 |
+
+> **プロジェクトに置かないもの**: `CLAUDE.md`・`docs/rules/`・共通スクリプト（`pre-push`・`commit-msg`・
+> `check-*.sh`）は**共通リポにのみ実体を置き、参照する**（2026-07-30 順輸入廃止・ADR-010）。
+> git フックは `make install-hooks` が `common/scripts/` へ `ln -sf` し、ゲート実装は
+> `common/make/gates.mk` 経由で `common/scripts/` を実行する。詳細: `docs/rules/common-assets.md`。
+
+上表は「**無ければ赤になる要件**」であって、リポジトリの地図ではない。
+何がどこにあるかは下記のとおり各階層の README が正本とする。
+
+## 所在の管理は各階層の README が正本（2026-07-30 決定）
+
+**「何がどこにあるか」は、そのディレクトリの README にツリーで書く。** ルール文書・設計文書・
+`PROJECT.md` の側に構成を列挙しない。
+
+- **README は下位ディレクトリを案内する階層に置く**。ファイルが並ぶだけの階層には置かない
+  —— 親のツリーに「そのディレクトリの役割1行」を書けば足りる。1階層ごとに README を作ると
+  かえって追随箇所が増える（2026-07-30 ユーザー判断）。
+- **README には必ずそのディレクトリのツリーを載せる**。表や箇条書きの列挙に代えない
+  —— ツリーだけが「何がどこにあるか」を階層ごと1画面で示せる形で、README を開いた人が
+  最初に必要とする情報がそれだから。ファイル名の右に用途を1行で添える。
+- **記載するのは自ディレクトリの直下まで**。下位の詳細は下位の README に委ねる
+  （同じ構成を2箇所に書くと必ず片方が古くなる）。
+- **他の文書は所在を書かず README を参照する**。実装ファイルのパスを散らすと、構成を変えるたびに
+  N 個の文書を追う羽目になる（実際、2026-07-30 の参照方式移行では9文書31箇所の追随が発生した）。
+  ふるまいを説明したいときは、パスではなく**契約**（`make <ターゲット>`）で書く。ターゲット名は
+  スタック非依存の契約（ADR-002）なので、実装の置き場所が変わっても動かない。
+- 例外は**機械が読むパス**（`Makefile`・`common/make/*.mk`・監査スクリプトの配列・
+  `settings.json` の deny・要件の `paths:`）。ここは正確なパスが必要で、いずれも機械検査が付いている。
+
+README の存在とツリーの実在は `audit-consistency.sh` が検査する（人手のレビューに委ねない）。
 
 ## プロファイル（新規サービス生成の合成方式）
 

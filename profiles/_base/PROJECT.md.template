@@ -72,9 +72,9 @@ make audit-all   # 整合性監査一式
 
 ## 🛡 Tierトリップワイヤ設定（このサービスの「機微」の定義）
 
-照合エンジンは共通リポの `scripts/check-tier-tripwire.sh` が提供する。
+照合エンジンは共通リポの `common/scripts/check-tier-tripwire.sh` が提供する（複製は持たない。呼び出しは `common/make/gates.mk` 経由）。
 「何を機微とみなすか」は各サービスがここで定義する（共通リポは固有値を持たない）。
-実際の値は `Makefile` の `tier-tripwire` ターゲットで export する（下記の 2 変数）。
+実際の値は `Makefile` の変数として定義し、`gates.mk` が受け取る（下記の 2 変数）。
 
 - `TIER_TRIPWIRE_PATHS`  … 機微コードのパス glob を `|` 区切りで列挙する。
 - `TIER_TRIPWIRE_SYMBOLS`… パス名に現れない機微識別子の拡張正規表現（`|` で alternation）。

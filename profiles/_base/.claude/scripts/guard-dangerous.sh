@@ -190,7 +190,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		# a) リダイレクト（> / >> / >|）先が共通所有ファイル
 		#    >| は noclobber 無効化つき上書き。`[^|...]` が直後の | でパイプと誤認し素通ししていたため明示的に許容する。
 		if printf '%s' "$STRIPPED" | grep -qE ">[>|]?[[:space:]]*[^|;&<>]*$COMMON_OWNED"; then
-			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
+			deny "共通所有ファイルへのリダイレクト書き込みを検知したためブロックしました（プロジェクト側は共通所有ファイルを編集も複製もしない。実体は共通リポにあり参照する。ADR-009/010）"
 		fi
 		# b) 変更系コマンド（tee/cp/mv/dd/install/truncate/patch/rsync/sed -i/インタプリタ）が
 		#    共通所有ファイルと共起（過剰側=fail-safe）。
@@ -230,7 +230,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 			# 遮断されていた（node はコマンドではなくホームディレクトリ名の一部）。
 			if printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])(tee|cp|mv|dd|install|truncate|patch|rsync|python[0-9]*(\.[0-9]+)*|node|nodejs|perl|ruby|php|deno|bun)([^[:alnum:]_/.-]|$)' ||
 			   printf '%s' "$seg" | grep -qE '(^|[^[:alnum:]_.-])sed([^[:alnum:]_/.-]|$).*-i'; then
-				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（サービス側は編集禁止・更新は順輸入のみ。ADR-009）"
+				deny "共通所有ファイルへの bash 経由の書き込み/変更を検知したためブロックしました（プロジェクト側は共通所有ファイルを編集も複製もしない。実体は共通リポにあり参照する。ADR-009/010）"
 			fi
 		done < <(printf '%s\n' "$STRIPPED" | awk '{gsub(/\|\||&&|[|;&]/, "\n"); print}')
 	fi

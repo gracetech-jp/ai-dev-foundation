@@ -357,9 +357,53 @@ while IFS= read -r rel; do
 	elif ! diff -q "$ROOT/service-templates/$rel" "$ROOT/profiles/_base/$base_rel" >/dev/null 2>&1; then
 		report "移行複製が不一致: service-templates/$rel ↔ profiles/_base/$base_rel（片方だけ更新された）"
 	fi
-done < <(cd "$ROOT/service-templates" 2>/dev/null && find . -type f ! -name 'guard-shim.sh' | sed 's|^\./||' | sort)
+# README.md（このディレクトリ自身の説明＝所在の正本）は配布物ではないので対を要求しない。
+# 配布される雛形は README.md.template のほうで、そちらは従来どおり一致を強制する。
+done < <(cd "$ROOT/service-templates" 2>/dev/null && find . -type f ! -name 'guard-shim.sh' ! -name 'README.md' | sed 's|^\./||' | sort)
 # マーカーの実在（全解決の起点。消えると Make も Docker も番人フックも解決不能になる）
 [ -f "$ROOT/.ai-dev-foundation-root" ] || report "マーカー .ai-dev-foundation-root がありません（参照方式の全解決が失敗します）"
+
+echo "[audit] (11) 参照方式の退化検出（共通スクリプトを複製前提のパスで案内していないか）..."
+# ADR-010 以降、共通スクリプトの実体は common/scripts/ にしかない。ドキュメントや雛形が
+# `scripts/pre-push` のようにプロジェクト直下を指す形で案内していると、読者は存在しないファイルを
+# 探すことになる。2026-07-30 の移行で repo-layout.md の必須構成表と PROJECT.md.template に
+# 実際に取り残しが出た（人手の grep では拾いきれなかった）ため、機械検出を常設する。
+#
+# 見るのは**バッククォートで囲まれたパス指定だけ**。settings.json の deny `Edit(scripts/pre-push)` は
+# 「複製をプロジェクト側に作らせない」ためのロックであり、この表記のままが正しいので対象外。
+# tests/ の bats はガードの入力としてこの文字列を意図的に使うため対象外。
+# docs/decisions/・docs/audit/ は当時の記録なので対象外（過去を書き換えない）。
+COMMON_SCRIPT_RE='pre-push|commit-msg|check-coverage\.sh|check-requirements-coverage\.sh|check-tier-tripwire\.sh'
+while IFS= read -r hit; do
+	[ -n "$hit" ] || continue
+	report "参照方式の退化: $hit（共通スクリプトの実体は common/scripts/ のみ。common/ 付きで書くこと）"
+done < <(grep -rnE "\`scripts/($COMMON_SCRIPT_RE)\`" \
+	--include='*.md' --include='*.template' \
+	"$ROOT/docs/rules" "$ROOT/profiles" "$ROOT/service-templates" "$ROOT/README.md" "$ROOT/CLAUDE.md" \
+	2>/dev/null | sed "s|^$ROOT/||")
+
+echo "[audit] (12) 所在の正本（各階層の README とツリー）の実在検査..."
+# 「何がどこにあるか」は各階層の README が正本（docs/rules/repo-layout.md「所在の管理は…」）。
+# README が無い／ツリーが無い状態を許すと、所在の記述がまたルール文書側へ散り、構成を変えるたびに
+# N 文書を追う羽目になる（2026-07-30 の参照方式移行で9文書31箇所の追随が実際に発生した）。
+# ツリーの実在は「自ディレクトリのパスだけの行」（例: `docs/rules/`）が存在するかで見る。
+# 中身の正しさまでは機械で見ない——見られるのは「所在を書く場所がある」ことまで。
+# 対象は**下位ディレクトリを案内する階層**だけ。ファイルが並ぶだけの階層には README を置かない
+# （2026-07-30 ユーザー判断。1枚ずつ作ると作りすぎで、親のツリー1行で足りる）。
+README_DIRS="common docs docs/decisions docs/requirements profiles service-templates"
+for d in $README_DIRS; do
+	# ディレクトリ自体が無ければ対象外（無いものの所在は書けない）。構成の欠落そのものは
+	# 検査(3)の配布漏れ検査と Makefile の必須ターゲット検査が別途受け持つ。
+	[ -d "$ROOT/$d" ] || continue
+	f="$ROOT/$d/README.md"
+	if [ ! -f "$f" ]; then
+		report "$d/README.md がありません（所在の正本。docs/rules/repo-layout.md）"
+	elif ! grep -qxF "$d/" "$f"; then
+		report "$d/README.md に自ディレクトリのツリーがありません（'$d/' の行で始まるツリーを置くこと）"
+	fi
+done
+grep -qxF "ai-dev-foundation/" "$ROOT/README.md" 2>/dev/null \
+	|| report "README.md にリポジトリ直下のツリーがありません（'ai-dev-foundation/' の行で始まるツリー）"
 
 echo ""
 if [ "$fail" -ne 0 ]; then

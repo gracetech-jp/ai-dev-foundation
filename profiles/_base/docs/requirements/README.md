@@ -8,6 +8,15 @@ CIが緑でも要件が未達なら不合格、を機械判定できる土台。
 - negative space（起きてはいけないこと）の固定資産: `INVARIANTS-template.md` を複製して埋める
 - 新しい要件は `R-000-template.md` を複製し、次の連番で作る（IDは不変・再利用禁止）
 
+## ディレクトリ構成
+
+```
+docs/requirements/
+├── README.md               # このファイル（運用）
+├── R-000-template.md       # 要件の雛形（複製して次の連番で作る）
+└── INVARIANTS-template.md  # negative space（起きてはいけないこと）の雛形
+```
+
 ## 運用（重要）
 
 - 要件は LLM も直接生成・編集できる。新規は `status: draft` で起こし、内容確定後に `ratified` へ更新する

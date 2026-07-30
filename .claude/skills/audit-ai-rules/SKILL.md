@@ -33,7 +33,7 @@ description: Web上のAI駆動開発・Claude Codeベストプラクティスと
 | `PROJECT.md` | 技術スタック表・ディレクトリ構成・環境変数表が実装と一致しているか |
 | `docs/rules/*.md` | 各ルールの内容、他ファイルとの重複・矛盾の有無 |
 | `.claude/settings.json` / `settings.local.json` | permissions.allow/deny/ask の内容。MUSTルールに書かれた禁止事項が実際にdenyされているか |
-| `scripts/audit-consistency.sh` / `scripts/pre-push` | 整合性監査・テスト実行が実際にpush前などで強制されているか |
+| `scripts/audit-consistency.sh` / `common/scripts/pre-push` | 整合性監査・テスト実行が実際にpush前などで強制されているか |
 | 実際のコード（依存定義ファイル・モジュール構成） | ドキュメントに書かれていない新規モジュール・依存関係がないか |
 | 各サービスリポの `PROJECT.md`・`docs/service-rules/` | 本スキルは基盤リポでのみ実施する（2026-07-23 にサービス配布を停止）。監査対象には、本リポの**親ディレクトリ配下にある各サービスリポ**（`.service-profile` ファイルの存在で機械判別。特定サービス名は前提にしない）の固有ルールも含め、サービス側の監査機会が失われないようにする。到達できないサービスリポは「未監査」と明記する |
 

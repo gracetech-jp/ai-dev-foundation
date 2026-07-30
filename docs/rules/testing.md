@@ -44,5 +44,5 @@
   補強する（旧 `tests_ratified_by` の人間批准は 2026-07-24 の批准レス化（ADR-008）で廃止）。
 - **adversarial テストは、実装した同一コンテキストで生成しない**ことを推奨する（要件文面だけを入力に
   した別コンテキストで逆生成する。骨抜き防止。`docs/rules/requirements.md` §6）。
-- 未カバー要件・dangling マーカーは `scripts/check-requirements-coverage.sh` が
+- 未カバー要件・dangling マーカーは `common/scripts/check-requirements-coverage.sh` が
   CI と push 前で機械検出する（`make req-coverage`）。

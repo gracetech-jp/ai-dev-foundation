@@ -19,9 +19,9 @@
 |---|---|
 | `make test` | 全テスト実行 |
 | `make lint` | 静的解析（**警告ゼロで失敗する設定**にする。下記3参照） |
-| `make coverage` | カバレッジのフロア検証（一方向ラチェット。下記5参照。`scripts/check-coverage.sh` で判定） |
-| `make req-coverage` | 要件↔テストのトレーサビリティ検証（`scripts/check-requirements-coverage.sh` で判定。詳細: `docs/rules/requirements.md`） |
-| `make tier-tripwire` | Tier申告のコード実態からの裏取り（`scripts/check-tier-tripwire.sh` で判定。詳細: `docs/rules/tiers.md`） |
+| `make coverage` | カバレッジのフロア検証（一方向ラチェット。下記5参照。`common/scripts/check-coverage.sh` で判定） |
+| `make req-coverage` | 要件↔テストのトレーサビリティ検証（`common/scripts/check-requirements-coverage.sh` で判定。詳細: `docs/rules/requirements.md`） |
+| `make tier-tripwire` | Tier申告のコード実態からの裏取り（`common/scripts/check-tier-tripwire.sh` で判定。詳細: `docs/rules/tiers.md`） |
 | `make audit-all` | 整合性監査一式（詳細: `docs/rules/consistency.md`） |
 | `make audit-deps` | 依存パッケージの脆弱性監査（詳細: `docs/rules/security.md`） |
 | `make install-hooks` | git フック（pre-push・commit-msg 等）をローカルに導入 |
