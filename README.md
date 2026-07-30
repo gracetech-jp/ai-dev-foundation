@@ -11,7 +11,7 @@
 - devcontainer雛形の管理（Windows/Mac差異を吸収）
 - 品質ゲートの配布（Makefileターゲット契約・pre-push/commit-msgフック・CI多段ゲート・カバレッジラチェット）
 - 新サービス立ち上げスクリプトの提供
-- 共通基盤の一方通行配布：改善は基盤リポで直接行い、各サービスが順輸入で取り込む（逆輸入は廃止・ADR-009。`docs/rules/backport.md`）
+- 共通資産は参照方式：実体は基盤リポに1つだけ置き、各プロジェクトは実行時に参照する（配布・順輸入は廃止・ADR-009/010。`docs/rules/common-assets.md`）
 
 ## メンバー向けセットアップ
 
@@ -54,11 +54,11 @@ make install-hooks # pre-push / commit-msg フックの導入
 | パス | 内容 |
 |---|---|
 | `CLAUDE.md` | AI開発共通ルール（全サービスへ配布される正本） |
-| `docs/rules/` | 共通ルール詳細（品質ゲート・git運用・配布/順輸入 等） |
+| `docs/rules/` | 共通ルール詳細（品質ゲート・git運用・共通資産の所有と参照 等） |
 | `docs/requirements/` | 要件の正本（永続資産。批准レス運用: ADR-008） |
 | `docs/decisions/` | ADR（基盤の意思決定記録） |
 | `profiles/` | 新サービス用雛形（`_base/`=共通骨格＋`product-static/`・`product-web/`=プロファイル断片） |
-| `scripts/` | new-service / 監査 / 順輸入 / git フック |
+| `scripts/` | new-service / 整合性監査 |
 | `tests/` | 配布シェル資産の bats 回帰テスト（`@req` マーカーで要件に紐づけ） |
 | `.claude/` | この基盤リポ自身のガードレール（settings・フック・skills） |
 | `.github/` | 基盤リポ自身の CI 多段ゲート |
@@ -85,7 +85,7 @@ ai-dev-foundation/
 │   │   ├── quality-gates.md / consistency.md / token-efficiency.md
 │   │   ├── tiers.md                    # Tier分類（S/A/B/C）と検証厳格度・トリップワイヤ
 │   │   ├── requirements.md             # 要件の永続資産化とトレーサビリティ
-│   │   ├── backport.md                 # 配布と順輸入の手順（一方通行）
+│   │   ├── common-assets.md            # 共通資産の所有と参照（実体は共通リポに1つ）
 │   │   └── repo-layout.md              # サービス必須構成の正
 │   └── decisions/                      # ADR（001〜009）
 ├── profiles/                           # 新サービス用雛形（プロファイル合成方式。ADR-006）
@@ -93,15 +93,16 @@ ai-dev-foundation/
 │   ├── product-static/                 #   自社・静的サイト向け断片（profile.manifest + files/）
 │   └── product-web/                    #   自社・動的Webアプリ向け断片（profile.manifest + files/）
 ├── scripts/
-│   ├── new-service.sh                  # 新サービス雛形生成
-│   ├── audit-consistency.sh            # 整合性監査（配布漏れ・リンク切れ・退化検出）
-│   ├── check-coverage.sh               # カバレッジ・フロア判定（一方向ラチェット）
-│   ├── check-requirements-coverage.sh  # 要件↔テストのカバレッジ検証（未カバー・dangling検出）
-│   ├── check-tier-tripwire.sh          # Tierデスカレーションのコード実態裏取り
-│   ├── pre-push / commit-msg           # gitフック（push前ゲート・コミット規約）
-│   └── sync-from-common.sh             # 順輸入（共通→サービス。一方通行配布）
+│   ├── new-service.sh                  # 新プロジェクト雛形生成（生成先は projects/ 配下）
+│   └── audit-consistency.sh            # 整合性監査（配布漏れ・リンク切れ・退化検出）
+├── common/                             # 共通資産の実体（各プロジェクトが参照する。複製しない）
+│   ├── make/contract.mk / gates.mk     # ターゲット契約とゲート呼び出し
+│   ├── scripts/check-*.sh              # カバレッジ床・要件カバレッジ・Tierトリップワイヤ
+│   ├── scripts/pre-push / commit-msg   # gitフック（make install-hooks が ln -sf する）
+│   └── scripts/resolve-common.sh       # マーカー .ai-dev-foundation-root の上方探索
+├── projects/                           # 各プロジェクト（ここに置くことで共通資産を解決できる）
 ├── tests/                              # 配布シェル資産の bats 回帰テスト（guard / req-coverage / tier-tripwire / new-service / audit）
-├── .backport-manifest                  # 共通所有ファイルの名簿（順輸入=配布の範囲。名称は互換維持）
+├── .ai-dev-foundation-root             # 参照解決の起点マーカー（消すと全解決が失敗する）
 ├── .req-coverage-baseline              # 未カバー要件のベースライン免除（Tier B/C のみ可）
 ├── Makefile                            # 品質ゲートのターゲット契約
 ├── CLAUDE.md                           # AI開発共通ルール（共通正本）

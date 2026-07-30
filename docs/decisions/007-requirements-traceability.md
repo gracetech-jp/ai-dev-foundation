@@ -31,7 +31,7 @@
 |---|---|
 | P-0 | Tier定義（S/A/B/C・4軸最大値方式・抽象定義・固有語ゼロ。`docs/rules/tiers.md`） |
 | G1 | 要件の永続資産化・一意ID（R-xxx）・front-matterスキーマ（`docs/rules/requirements.md` §1-2） |
-| G2 | 要件↔テスト紐づけ・未カバーゼロゲート（マーカー規約: `docs/rules/testing.md`。`@pytest.mark.req("R-xxx")` は例示で、走査正規表現 `REQ_MARKER_RE` はスタック依存＝`SERVICE.md` 由来） |
+| G2 | 要件↔テスト紐づけ・未カバーゼロゲート（マーカー規約: `docs/rules/testing.md`。`@pytest.mark.req("R-xxx")` は例示で、走査正規表現 `REQ_MARKER_RE` はスタック依存＝`PROJECT.md` 由来） |
 | G3 | 要件のLLM編集封鎖（`settings.json` deny＋`guard-dangerous.sh`＋CODEOWNERS） |
 | G4 | negative space（起きてはいけないこと）の固定資産化・adversarialゲート |
 | G5 | SessionStart フックで要件状態を警告surface（非ブロック。`session-start-rules.sh`） |
@@ -48,7 +48,7 @@
 ai-dev-foundation はアプリ実装を持たない共通基盤。特定サービスの制約語を、配布される実体
 （既定値・テンプレ本文・スクリプト）に一語も焼き込まない。焼き込むと、その制約に該当しない
 新規サービスを生成したときにゴミとして残存するため。具体の禁止事象は各サービスが
-`docs/requirements/` と `SERVICE.md` に自分のドメイン語で書く。共通側は空欄フォーマットと
+`docs/requirements/` と `PROJECT.md` に自分のドメイン語で書く。共通側は空欄フォーマットと
 ルールと照合エンジンだけを配る。この純度は grep で機械的に検査可能な一線として維持する。
 
 ### 2. 自己申告点は三重に潰した

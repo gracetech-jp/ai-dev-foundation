@@ -87,7 +87,7 @@
 
 | パス | 判定 | 根拠 |
 |---|---|---|
-| _base/Makefile・ci.yml・audit-consistency.sh・SERVICE.md.template・gitignore.template・.editorconfig・.env.example・.coverage-floor・.req-coverage-baseline・.tier-tripwire-allow・devcontainer3点・docs/requirements3点・docs/service-rules・docs/decisions2点 | 維持 | new-service.sh:82-128 が配布。audit:72-98 が配布漏れ/退化を機械検出 |
+| _base/Makefile・ci.yml・audit-consistency.sh・PROJECT.md.template・gitignore.template・.editorconfig・.env.example・.coverage-floor・.req-coverage-baseline・.tier-tripwire-allow・devcontainer3点・docs/requirements3点・docs/service-rules・docs/decisions2点 | 維持 | new-service.sh:82-128 が配布。audit:72-98 が配布漏れ/退化を機械検出 |
 | _base/README.md.template | **修正(S/中)** | :20-23「該当ファイルも手動で同期してください」— sync-from-common.sh と矛盾（CLAUDE.md は手動同期を否定）。順輸入コマンド案内に更新すべき |
 | product-static: manifest＋files4点 | 維持 | display-green。manifest 検証は new-service.sh:151-208（fail-closed） |
 | product-web: manifest＋files9点 | 維持 | full-red。ドメイン語ゼロを確認（main.py はドメイン境界注記 :1-5 付き参照実装） |

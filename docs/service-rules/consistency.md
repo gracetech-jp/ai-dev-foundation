@@ -2,7 +2,7 @@
 
 > このファイルは**このリポジトリ（基盤リポ自身）に固有**。原則・枠組みは共通の `docs/rules/consistency.md` を正とし、
 > ここには基盤リポの実体に依存する**具体コマンド・監査スクリプトの中身・層の呼称**だけを書く。
-> 配布の対象外（`docs/service-rules/` はリポに閉じる。詳細: `docs/rules/backport.md`）。
+> 配布の対象外（`docs/service-rules/` はリポに閉じる。詳細: `docs/rules/common-assets.md`）。
 > 基盤リポは自らのルールを dogfood するため、サービスと同じ型でこのファイルを持つ（配布雛形: `profiles/_base/docs/service-rules/consistency.md`）。
 
 ---
@@ -49,7 +49,7 @@
 
 - 配布漏れ: `scripts/new-service.sh` の配布物と `docs/rules/repo-layout.md` の必須構成の突合（検査層(3)）。
 - 配布複製の同期: `.claude/`（guard・session-start・skills・agents・settings の permissions）が
-  root と `profiles/_base/` で一致すること（検査層(6)。`.backport-manifest` 注1の手動同期を機械検証。
+  root と `profiles/_base/` で一致すること（検査層(6)。参照にできない複製の手動同期を機械検証。
   共通所有ロックの deny は _base 側にのみ置く配布分岐として検査側で差し引く。ADR-009）。
 - profiles の骨格を変更したら既存サービスへは手動同期で配る（一方通行。ADR-009）。該当プロファイルの
   bats（`tests/new-service.bats`）が緑であることを確認する。

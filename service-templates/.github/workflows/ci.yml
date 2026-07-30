@@ -60,7 +60,7 @@ jobs:
           fetch-depth: 0   # 差分基準（origin/main）に全履歴が必要
       - uses: gracetech-jp/ai-dev-foundation/.github/actions/tier-tripwire@v1
         with:
-          # SERVICE.md「Tierトリップワイヤ設定」と Makefile の値を一致させること。
+          # PROJECT.md「Tierトリップワイヤ設定」と Makefile の値を一致させること。
           # 機微面が無い場合は空のまま docs/requirements/.tier-tripwire-none をコミットする。
           sensitive-paths: ""
           sensitive-symbols: ""

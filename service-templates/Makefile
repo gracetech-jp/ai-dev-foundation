@@ -29,7 +29,7 @@ REQ_TEST_PATHS        := tests
 REQ_MARKER_RE         := @req:?[[:space:]]*R-[0-9]+
 ADV_MARKER_RE         := @adversarial:?[[:space:]]*R-[0-9]+
 
-# 機微コードのパス glob（| 区切り）。SERVICE.md「Tierトリップワイヤ設定」を正とする。
+# 機微コードのパス glob（| 区切り）。PROJECT.md「Tierトリップワイヤ設定」を正とする。
 # 空のまま かつ docs/requirements/.tier-tripwire-none 不在は exit 2（fail-closed）。
 # 機微面が無いサービスは .tier-tripwire-none をコミットして明示宣言する。
 TIER_TRIPWIRE_PATHS   :=

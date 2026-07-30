@@ -190,8 +190,12 @@ decision_of() {
 	[ -z "$output" ]
 }
 
-@test "R-002: サービス想定でも順輸入の実行は許可する（唯一の正規更新経路）" {
-	run run_guard_svc "bash scripts/sync-from-common.sh /path/to/common --apply"
+# 旧「順輸入の実行は許可する（唯一の正規更新経路）」は 2026-07-30 に差し替えた。
+# 順輸入を廃止（ADR-010）し、共通所有の実体は共通リポにのみ置く形になったため、
+# サービス側の更新経路そのものが無くなった。代わりに、参照方式で正当になった操作
+# （共通側の実体を読む・共通側のスクリプトを実行する）が素通ることを検査する。
+@test "R-002: サービス想定でも共通側の実体の参照・実行は許可する（参照方式）" {
+	run run_guard_svc "bash ../ai-dev-foundation/common/scripts/check-coverage.sh 80 ."
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }
@@ -202,8 +206,8 @@ decision_of() {
 	[ -z "$output" ]
 }
 
-@test "R-002: サービス想定で編集前提のファイル（SERVICE.md・Makefile）は素通しする（例外）" {
-	run run_guard_svc "echo impl >> Makefile && sed -i 's/a/b/' SERVICE.md"
+@test "R-002: サービス想定で編集前提のファイル（PROJECT.md・Makefile）は素通しする（例外）" {
+	run run_guard_svc "echo impl >> Makefile && sed -i 's/a/b/' PROJECT.md"
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
 }

@@ -54,31 +54,25 @@ fi
 
 echo "[audit] (3) 新サービスへの配布漏れ検査..."
 NS="scripts/new-service.sh"
-# new-service.sh が docs/rules 配下を新サービスへ配布しているか。
-# 個別 cp のハードコードだと追加ルールの配布漏れが起きるため、ディレクトリ単位の配布を必須とする。
-if ! grep -qE 'docs/rules/?"?[^*]*\*|cp -r .*docs/rules|docs/rules/\*' "$NS"; then
-	# ディレクトリ一括コピーが見当たらない場合、個別コピーの取りこぼしを検出する。
-	for f in docs/rules/*.md; do
-		base="$(basename "$f")"
-		if ! grep -q "$base" "$NS"; then
-			report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
-		fi
-	done
+# 共通ルール（CLAUDE.md・docs/rules/）は**配布してはならない**（2026-07-30 順輸入廃止・ADR-010）。
+# 参照方式では実体は共通リポにのみ存在し、プロジェクトは上位探索で解決する。再び配り始めると
+# 複製が生まれて乖離するため、cp 行の再発を検出する（コメント中の言及は拾わないよう cp 行に限定）。
+if grep -nE '^[[:space:]]*cp[[:space:]].*(CLAUDE\.md|docs/rules/)' "$NS" >/dev/null; then
+	report "new-service.sh が CLAUDE.md / docs/rules/ を配布しています（参照方式の退化。ADR-010 では配らない）"
 fi
-# 品質ゲート・順輸入ツール・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
+# 品質ゲート・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
 # （配布行の削除・退化を検出）。特に guard-dangerous.sh / settings.json / session-start-rules.sh は
 # 安全機構の配布そのものであり、退化すると新サービスがガード無しで生まれるため必ず含める。
 # ディレクトリ単位で配布されるもの（skills/agents/service-rules/decisions）は basename がディレクトリ名。
+# 共通スクリプト（pre-push・commit-msg・check-*.sh）は配布対象から外した（ADR-010。参照で解決する）。
 for req in \
-	scripts/pre-push scripts/commit-msg scripts/check-coverage.sh scripts/audit-consistency.sh \
-	scripts/sync-from-common.sh \
+	scripts/audit-consistency.sh \
 	profiles/_base/Makefile profiles/_base/.github/workflows/ci.yml profiles/_base/.editorconfig profiles/_base/.coverage-floor \
 	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
 	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
 	profiles/_base/.devcontainer/Dockerfile profiles/_base/.devcontainer/postCreate.sh profiles/_base/.devcontainer/devcontainer.json \
 	profiles/_base/gitignore.template profiles/_base/.env.example \
-	profiles/_base/SERVICE.md.template profiles/_base/README.md.template \
-	scripts/check-requirements-coverage.sh scripts/check-tier-tripwire.sh \
+	profiles/_base/PROJECT.md.template profiles/_base/README.md.template \
 	profiles/_base/docs/requirements \
 	profiles/_base/.req-coverage-baseline profiles/_base/.tier-tripwire-allow \
 	profiles/_base/docs/service-rules profiles/_base/docs/decisions; do
@@ -89,8 +83,14 @@ for req in \
 done
 
 # 要件トレーサビリティのターゲット/ジョブが配布雛形に存在するか（退化検出）。
-for pair in "profiles/_base/Makefile:req-coverage" "profiles/_base/Makefile:tier-tripwire" \
-            "profiles/_base/.github/workflows/ci.yml:req-coverage" "profiles/_base/.github/workflows/ci.yml:tier-tripwire"; do
+# _base/Makefile は req-coverage / tier-tripwire を自前定義せず common/make/gates.mk から取り込む。
+# 「ターゲット名がファイル中に現れるか」では**コメント中の言及でも緑になる**ため、include 行の実在で見る。
+for needle in "common/make/contract.mk" "common/make/gates.mk"; do
+	if ! grep -qE "^include .*$needle" "$ROOT/profiles/_base/Makefile"; then
+		report "profiles/_base/Makefile が $needle を include していません（共通ゲートの取り込みが退化）"
+	fi
+done
+for pair in "profiles/_base/.github/workflows/ci.yml:req-coverage" "profiles/_base/.github/workflows/ci.yml:tier-tripwire"; do
 	tfile="${pair%%:*}"; needle="${pair##*:}"
 	if [ -f "$ROOT/$tfile" ] && ! grep -q "$needle" "$ROOT/$tfile"; then
 		report "$tfile に '$needle' がありません（要件トレーサビリティの配布退化）"
@@ -107,12 +107,17 @@ echo "[audit] (4) リネーム残渣スキャン（データ駆動）..."
 # 旧名がリポジトリ全域に残っていないかを検出する（誤検出回避のため除外パスを絞る）。
 renames=(
 	# 例: "oldFieldName|newFieldName"
+	# 2026-07-30 サービス固有ルールのファイル名を SERVICE.md → PROJECT.md へ改名（互換読みは入れない）。
+	# 走査は projects/ 配下の各プロジェクトにも及ぶため、そちらの追随が済むまでは赤が正しい。
+	"SERVICE\.md|PROJECT.md"
 )
 # `[@]+...` は空配列+set -u で bash 4.3 以前が unbound エラーになるのを防ぐイディオム
 for pair in ${renames[@]+"${renames[@]}"}; do
 	old="${pair%%|*}"
 	new="${pair##*|}"
-	hits=$(grep -rn --exclude-dir=.git --exclude-dir=.claude --exclude="audit-consistency.sh" -- "$old" "$ROOT" 2>/dev/null || true)
+	# .sync-backup-*/ は旧・順輸入が取っていた「同期前スナップショット」で、過去の姿を保存するのが役目。
+	# 旧名が残っているのが正しいので残渣スキャンから外す（除外しないと恒久的な赤になる）。
+	hits=$(grep -rn --exclude-dir=.git --exclude-dir=.claude --exclude-dir='.sync-backup-*' --exclude="audit-consistency.sh" -- "$old" "$ROOT" 2>/dev/null || true)
 	if [ -n "$hits" ]; then
 		report "リネーム残渣: 旧名 '$old'（→ '$new'）が残存:"
 		# shellcheck disable=SC2001  # 各行への固定プレフィックス付与は sed が最も明瞭
@@ -145,12 +150,12 @@ done
 
 echo "[audit] (6) 配布複製の同期検査（root ↔ profiles/_base）..."
 # guard-dangerous.sh / session-start-rules.sh / skills / agents は root と profiles/_base の両方に複製配置され、
-# 機械還流の対象外＝手動同期（.backport-manifest 注1）。同期漏れは新規サービスだけが古いガードで生まれる
+# 参照方式でもパスが 1:1 対応しないため手動同期（詳細: docs/rules/common-assets.md）。同期漏れは新規サービスだけが古いガードで生まれる
 # 「サイレント分岐」になるため、複製ペアの diff 一致を機械強制する（2026-07-22 棚卸しで同期保証の空白として検出）。
 # 基盤専用資産（root にのみ置き、意図的に配布しないもの）は片側欠落検査から除外する。
 # 追加時は「配布しない」判断の日付・理由をここに1行残すこと。
 FOUNDATION_ONLY=(
-	".claude/skills/audit-ai-rules/"  # ルール監査は基盤で一括実施（2026-07-23 配布除外。docs/rules/backport.md）
+	".claude/skills/audit-ai-rules/"  # ルール監査は基盤で一括実施（2026-07-23 配布除外。docs/rules/common-assets.md）
 )
 is_foundation_only() {
 	local p
@@ -183,7 +188,7 @@ done < <(
 # 比較時に _base 側から差し引いてから照合する（この配布分岐は意図的で、ここが差分の正の定義）。
 if command -v jq >/dev/null 2>&1; then
 	norm_perms='.permissions | with_entries(.value |= sort)'
-	common_lock_re='^(Write|Edit)\\((CLAUDE\\.md|docs/rules/.*|\\.claude/(settings\\.json|scripts/.*|skills/(extract-requirements|verify-request)/.*|agents/(consistency-auditor|security-reviewer)\\.md)|scripts/(pre-push|commit-msg|check-coverage\\.sh|check-requirements-coverage\\.sh|check-tier-tripwire\\.sh|sync-from-common\\.sh))\\)$'
+	common_lock_re='^(Write|Edit)\\((CLAUDE\\.md|docs/rules/.*|\\.claude/(settings\\.json|scripts/.*|skills/(extract-requirements|verify-request)/.*|agents/(consistency-auditor|security-reviewer)\\.md)|scripts/(pre-push|commit-msg|check-coverage\\.sh|check-requirements-coverage\\.sh|check-tier-tripwire\\.sh))\\)$'
 	base_minus_lock=".permissions | .deny |= map(select(test(\"$common_lock_re\") | not)) | with_entries(.value |= sort)"
 	if ! diff -q \
 		<(jq -S "$norm_perms" "$ROOT/.claude/settings.json") \
@@ -198,7 +203,7 @@ if command -v jq >/dev/null 2>&1; then
 		"docs/rules/**"                        # 共通ルールの詳細
 		".claude/settings.json"                # ロックの定義それ自体（自己防御）
 		".claude/scripts/guard-dangerous.sh"   # bash 経路の遮断本体（自己防御）
-		"scripts/sync-from-common.sh"          # 唯一の正規更新経路
+		".claude/scripts/session-start-rules.sh"  # 共通ルールをセッションへ注入する本体（欠けると無言でルール無しになる）
 	)
 	# 検査するのは Edit のみ（2026-07-26）。Write はファイル権限チェックに一致せず効かない。
 	for core in "${LOCK_CORE[@]}"; do
@@ -222,9 +227,9 @@ else
 	report "jq が無く settings.json の permissions 同期検査ができません（guard-dangerous.sh も jq 依存。導入必須）"
 fi
 
-echo "[audit] (7) 共通所有ロックの定義突合（guard 正規表現 ↔ 配布 deny ↔ manifest）..."
-# 共通所有ファイルの定義が guard-dangerous.sh の COMMON_OWNED・配布 settings.json の deny・
-# .backport-manifest に分かれてハードコードされており、片方だけ更新すると穴が開く（2026-07-25 review 指摘）。
+echo "[audit] (7) 共通所有ロックの定義突合（guard 正規表現 ↔ 配布 deny）..."
+# 共通所有ファイルの定義が guard-dangerous.sh の COMMON_OWNED と配布 settings.json の deny に
+# 分かれてハードコードされており、片方だけ更新すると穴が開く（2026-07-25 review 指摘）。
 # 単一の正本を新設せず、機械的な突合で乖離を検出する方式を採る（正本化は配布経路の作り直しになるため）。
 if command -v jq >/dev/null 2>&1; then
 	GUARD=".claude/scripts/guard-dangerous.sh"
@@ -253,19 +258,10 @@ if command -v jq >/dev/null 2>&1; then
 	if jq -e '[.permissions.deny[] | select(startswith("Write("))] | length > 0' "$BASE_SET" >/dev/null 2>&1; then
 		report "配布 settings.json に Write(...) の deny が残っています（ファイル権限チェックに一致せず無効。Edit(...) に一本化すること）"
 	fi
-	# ③ .backport-manifest の配布対象が全てロックされていること。逆方向（deny ⊆ manifest）は課さない:
-	#    profiles/_base 由来の骨格（.claude/ 配下）はパスが 1:1 対応せずマニフェスト対象外＝手動同期のため
-	#    （docs/rules/backport.md 注1）。
-	if [ -f "$ROOT/.backport-manifest" ]; then
-		denied_paths="$(deny_edit | sed 's/\*\*$//')"
-		while IFS= read -r line; do
-			line="${line%%#*}"; line="$(printf '%s' "$line" | tr -d '[:space:]')"
-			[ -n "$line" ] || continue
-			if ! printf '%s\n' "$denied_paths" | grep -qxF "$line"; then
-				report "共通所有ロックの乖離: .backport-manifest の '$line' が配布 deny にありません（配布はするがロックされない）"
-			fi
-		done < "$ROOT/.backport-manifest"
-	fi
+	# ③ 旧「.backport-manifest の配布対象が全てロックされていること」は 2026-07-30 に撤去した。
+	#    順輸入の廃止（ADR-010）でマニフェスト自体が無くなり、`[ -f ... ]` 付きのまま残すと
+	#    **無言でスキップされる検査**になる（このリポジトリが繰り返し潰してきた失敗類型）。
+	#    ロックの正本は guard の COMMON_OWNED と配布 deny の2つで、①がその一致を担保する。
 fi
 
 echo "[audit] (8) 基盤自身のゲート無効化検出..."
@@ -310,20 +306,17 @@ if [ -f "$REQ_README" ]; then
 	done
 fi
 
-echo "[audit] (10) 参照方式への移行中の複製同期検査（旧パス ↔ common/ ↔ service-templates/ ↔ actions/）..."
-# 参照方式への移行（フェーズ0）で、共通資産の正本を common/ と service-templates/ へ移した。
-# ただし既存の配布機構（sync-from-common.sh は cp -a を使うためシンボリックリンクを配布先へ
-# そのまま複製してしまう／new-service.sh は profiles/_base を読む）を撤去できないフェーズ0では、
-# 旧パスに実体を残さざるを得ない。放置すると「2箇所が別々に育って誰も気づかない」乖離になるため、
-# 移行期間中だけ diff 一致を機械強制する。フェーズ5で旧パスごとこの層を撤去する。
+echo "[audit] (10) 参照にできない複製の同期検査（common/ ↔ service-templates/ ↔ actions/ ↔ _base/）..."
+# 参照方式への移行で、共通資産の正本を common/ と service-templates/ へ移した。
+# 順輸入の廃止（2026-07-30・ADR-010）でゲートスクリプトの旧パス複製は撤去できたが、
+# 「参照にできない複製」だけが残る: composite action の同梱スクリプト（$GITHUB_ACTION_PATH から
+# 読むため同梱が必須）と、new-service.sh が読む profiles/_base の Dockerfile。
+# 放置すると「2箇所が別々に育って誰も気づかない」乖離になるため diff 一致を機械強制する。
 # 追加時は「なぜこの対を持つのか」を1行残すこと。
 MIGRATION_PAIRS=(
-	# ゲートスクリプト: 正本は common/scripts/。旧 scripts/ は .backport-manifest の配布対象のため残す
-	"common/scripts/check-coverage.sh:scripts/check-coverage.sh"
-	"common/scripts/check-requirements-coverage.sh:scripts/check-requirements-coverage.sh"
-	"common/scripts/check-tier-tripwire.sh:scripts/check-tier-tripwire.sh"
-	"common/scripts/pre-push:scripts/pre-push"
-	"common/scripts/commit-msg:scripts/commit-msg"
+	# ゲートスクリプトの旧パス複製（scripts/check-*.sh・pre-push・commit-msg）は 2026-07-30 に削除した。
+	# 順輸入の廃止（ADR-010）で「配布対象だから旧パスに実体を残す」理由が消え、正本は common/scripts/ の
+	# 1箇所になった。Makefile・フック・CI はすべて common/ を参照する。
 	# ベースイメージ: 正本は common/docker/。profiles/_base は new-service.sh が読むため残す
 	"common/docker/Dockerfile.base:profiles/_base/.devcontainer/Dockerfile"
 	# composite action の同梱スクリプト: 正本は common/scripts/（$GITHUB_ACTION_PATH から読むため同梱が必須）

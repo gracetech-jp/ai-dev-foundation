@@ -8,7 +8,7 @@
 #
 # 終了コード: 0=OK / 1=要件未達（赤）/ 2=設定エラー・破損（fail-closed）。
 #
-# 設定（マーカー文字列はスタック依存のため SERVICE.md 由来。Makefile の req-coverage が export する）:
+# 設定（マーカー文字列はスタック依存のため PROJECT.md 由来。Makefile の req-coverage が export する）:
 #   REQ_TEST_PATHS     … テストを探索するパス（空白区切り）。必須（未設定は exit 2）。
 #   REQ_MARKER_RE      … req マーカー行にマッチする拡張正規表現（R-<数字> を含むこと）。必須（未設定は exit 2）。
 #   ADV_MARKER_RE      … adversarial マーカー行の拡張正規表現。未設定なら adversarial 被覆なし扱い。
@@ -36,7 +36,7 @@ REQ_TEST_PATHS="${REQ_TEST_PATHS:-}"
 REQ_MARKER_RE="${REQ_MARKER_RE:-}"
 ADV_MARKER_RE="${ADV_MARKER_RE:-}"
 
-[ -n "$REQ_MARKER_RE" ]  || die "REQ_MARKER_RE 未設定（SERVICE.md 由来のマーカー正規表現。fail-closed）"
+[ -n "$REQ_MARKER_RE" ]  || die "REQ_MARKER_RE 未設定（PROJECT.md 由来のマーカー正規表現。fail-closed）"
 [ -n "$REQ_TEST_PATHS" ] || die "REQ_TEST_PATHS 未設定（テスト探索パス。fail-closed）"
 [ -d "$REQ_DIR" ]        || die "$REQ_DIR がありません（要件ディレクトリ。fail-closed）"
 

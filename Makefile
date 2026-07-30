@@ -14,7 +14,7 @@ all: audit-all test req-coverage tier-tripwire
 # サービスリポジトリ側は各スタックのテストランナーで上書きする（bats は基盤の dogfood 専用）。
 test:
 	@echo "[test] 配布シェル資産の構文を検査します。"
-	@for f in scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh; do bash -n "$$f" || exit 1; done
+	@for f in scripts/*.sh .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh; do bash -n "$$f" || exit 1; done
 	@command -v bats >/dev/null 2>&1 || { echo "[test] ❌ bats が見つかりません（fail-closed。導入: apt-get install bats）"; exit 1; }
 	@echo "[test] bats を実行中..."
 	@bats tests/
@@ -25,22 +25,22 @@ test:
 lint:
 	@command -v shellcheck >/dev/null 2>&1 || { echo "[lint] ❌ shellcheck が見つかりません（fail-closed。導入: apt-get install shellcheck）"; exit 1; }
 	@echo "[lint] shellcheck を実行中..."
-	@shellcheck scripts/*.sh scripts/pre-push scripts/commit-msg .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh || exit 1
+	@shellcheck scripts/*.sh .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh || exit 1
 	@echo "[lint] ✅ 警告なし"
 
 # カバレッジのフロア検証（ラチェット）。基盤リポはアプリコードが無いためスキップ。
-# サービス側はカバレッジを計測し scripts/check-coverage.sh に測定値を渡して失敗判定する。
+# サービス側はカバレッジを計測し common/scripts/check-coverage.sh に測定値を渡して失敗判定する。
 coverage:
 	@echo "[coverage] 基盤リポにカバレッジ対象のアプリコードはありません。スキップします。"
 
 # 要件↔テストのカバレッジ検証（詳細: docs/rules/requirements.md / testing.md）。
 # 基盤は bats テストにコメントマーカー（# @req: R-xxx / # @adversarial: R-xxx）で要件を紐づける。
-# マーカー走査設定はスタック依存のため env で渡す（サービス側は SERVICE.md 由来の値を Makefile で設定）。
+# マーカー走査設定はスタック依存のため env で渡す（サービス側は PROJECT.md 由来の値を Makefile で設定）。
 req-coverage:
 	@REQ_TEST_PATHS="tests" \
 	 REQ_MARKER_RE='@req:?[[:space:]]*R-[0-9]+' \
 	 ADV_MARKER_RE='@adversarial:?[[:space:]]*R-[0-9]+' \
-	 bash scripts/check-requirements-coverage.sh
+	 bash common/scripts/check-requirements-coverage.sh "$(CURDIR)"
 
 # Tierトリップワイヤ（Tier デスカレーションをコード実態から裏取り。詳細: docs/rules/tiers.md）。
 # 基盤 ai-dev-foundation はアプリの機微プロダクトコードを持たないが、**配布するガードレール自身**が
@@ -48,11 +48,11 @@ req-coverage:
 # 空設定＋「機微面なし」宣言では F2 も S4 も一度も走らず ADR-008「維持したもの」と矛盾するため、
 # 機微パスを R-001・R-002 の paths の和集合として明示する（2026-07-25 是正）。
 # シンボルを空にするのは、基盤の機微面がファイル単位で確定しており、シンボル走査は統べる要件を
-# 持たないファイル（bats 等）を巻き込んで偽陽性を生むだけだから。サービス側は SERVICE.md 由来の値を渡す。
+# 持たないファイル（bats 等）を巻き込んで偽陽性を生むだけだから。サービス側は PROJECT.md 由来の値を渡す。
 tier-tripwire:
 	@TIER_TRIPWIRE_PATHS='.claude/scripts/guard-dangerous.sh|.claude/settings.json|profiles/_base/.claude/scripts/guard-dangerous.sh|profiles/_base/.claude/settings.json|profiles/*/files/.claude/settings.json|service-templates/claude/settings.json|service-templates/claude/scripts/guard-dangerous.sh' \
 	 TIER_TRIPWIRE_SYMBOLS="" \
-	 bash scripts/check-tier-tripwire.sh
+	 bash common/scripts/check-tier-tripwire.sh "$(CURDIR)"
 
 # 整合性監査一式（詳細: docs/rules/consistency.md）
 audit-all:
@@ -62,9 +62,10 @@ audit-all:
 audit-deps:
 	@echo "[audit-deps] 基盤リポに外部ランタイム依存はありません。スキップします。"
 
-# git フック（pre-push・commit-msg）をローカルに導入する
+# git フック（pre-push・commit-msg）をローカルに導入する。
+# 基盤リポも各プロジェクトと同じ形で common/scripts/ を参照する（複製を持たない。ADR-010）。
 install-hooks:
-	@ln -sf ../../scripts/pre-push "$$(git rev-parse --git-dir)/hooks/pre-push"
-	@ln -sf ../../scripts/commit-msg "$$(git rev-parse --git-dir)/hooks/commit-msg"
-	@chmod +x scripts/pre-push scripts/commit-msg
-	@echo "[install-hooks] ✅ pre-push・commit-msg フックを導入しました"
+	@hooks="$$(git rev-parse --git-dir)/hooks"; \
+	 ln -sf "$(CURDIR)/common/scripts/pre-push"   "$$hooks/pre-push"; \
+	 ln -sf "$(CURDIR)/common/scripts/commit-msg" "$$hooks/commit-msg"; \
+	 echo "[install-hooks] ✅ pre-push / commit-msg を common/scripts/ へリンクしました"

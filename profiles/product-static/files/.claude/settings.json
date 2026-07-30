@@ -68,7 +68,6 @@
       "Edit(scripts/check-coverage.sh)",
       "Edit(scripts/check-requirements-coverage.sh)",
       "Edit(scripts/check-tier-tripwire.sh)",
-      "Edit(scripts/sync-from-common.sh)",
       "Edit(.claude/agents/security-reviewer.md)"
     ]
   },

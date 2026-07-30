@@ -2,11 +2,11 @@
 # check-tier-tripwire.sh — Tier の自己申告デスカレーションをコード実態から裏取りするゲート。
 # 機微コード（パス∪シンボル）への変更に、統べる ratified Tier-S 要件が無い/ tier<S なら赤にする。
 # 設計の正: docs/rules/tiers.md（Tier付与の裏取り）/ docs/rules/requirements.md（要件↔paths）。
-# 既存作法踏襲: set -u・fail-closed・既定値を持たない（機微の定義は各サービスが SERVICE.md で行う）。
+# 既存作法踏襲: set -u・fail-closed・既定値を持たない（機微の定義は各サービスが PROJECT.md で行う）。
 #
 # 終了コード: 0=OK（または正当スキップ）/ 1=デスカレーション検出（赤）/ 2=設定エラー（fail-closed）。
 #
-# 設定（機微パターンはサービス固有のため SERVICE.md 由来。Makefile の tier-tripwire が export する）:
+# 設定（機微パターンはサービス固有のため PROJECT.md 由来。Makefile の tier-tripwire が export する）:
 #   TIER_TRIPWIRE_PATHS   … 機微コードのパス glob（| 区切り）。共通リポは既定値を持たない。
 #   TIER_TRIPWIRE_SYMBOLS … パス名に現れない機微識別子の拡張正規表現（| で alternation 可）。
 #   TIER_TRIPWIRE_TEST_RE … test/fixture 判定の正規表現（任意。既定はスタック中立の一般形）。
@@ -43,7 +43,7 @@ p_unset=0; s_unset=0
 [ "$SENS_SYMS" = "__UNSET__" ]  && { s_unset=1; SENS_SYMS=""; }
 
 if [ "$p_unset" -eq 1 ] && [ "$s_unset" -eq 1 ]; then
-	die "TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS 未定義。SERVICE.md で機微パターンを定義するか、機微面が無いなら $NONE_ACK をコミットして明示宣言してください（緑にしない＝fail-closed）"
+	die "TIER_TRIPWIRE_PATHS / TIER_TRIPWIRE_SYMBOLS 未定義。PROJECT.md で機微パターンを定義するか、機微面が無いなら $NONE_ACK をコミットして明示宣言してください（緑にしない＝fail-closed）"
 fi
 if [ -z "$SENS_PATHS" ] && [ -z "$SENS_SYMS" ]; then
 	# 明示的に空 → 「機微面なし」の明示宣言を要求

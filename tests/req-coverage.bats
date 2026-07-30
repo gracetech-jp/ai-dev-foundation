@@ -8,7 +8,7 @@
 setup() {
 	FIX="$BATS_TEST_TMPDIR/fix"
 	mkdir -p "$FIX/scripts" "$FIX/docs/requirements" "$FIX/tests"
-	cp "$BATS_TEST_DIRNAME/../scripts/check-requirements-coverage.sh" "$FIX/scripts/"
+	cp "$BATS_TEST_DIRNAME/../common/scripts/check-requirements-coverage.sh" "$FIX/scripts/"
 	SUT="$FIX/scripts/check-requirements-coverage.sh"
 	: > "$FIX/.req-coverage-baseline"
 }

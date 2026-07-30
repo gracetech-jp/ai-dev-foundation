@@ -1,4 +1,4 @@
-# SERVICE.md — [サービス名] 固有ルール
+# PROJECT.md — [サービス名] 固有ルール
 
 > **フェーズ: MVP** — main への直接 push を例外的に許可中（判定・切替条件: `docs/rules/git.md`「開発フェーズと main 直接 push」）
 
@@ -26,7 +26,7 @@
 ├── （ソースディレクトリ）
 ├── docs/
 ├── CLAUDE.md
-└── SERVICE.md
+└── PROJECT.md
 ```
 
 ---

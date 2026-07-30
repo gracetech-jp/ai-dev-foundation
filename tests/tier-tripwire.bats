@@ -6,7 +6,7 @@
 setup() {
 	FIX="$BATS_TEST_TMPDIR/fix"
 	mkdir -p "$FIX/scripts" "$FIX/docs/requirements" "$FIX/src/sensitive" "$FIX/src/util" "$FIX/tests"
-	cp "$BATS_TEST_DIRNAME/../scripts/check-tier-tripwire.sh" "$FIX/scripts/"
+	cp "$BATS_TEST_DIRNAME/../common/scripts/check-tier-tripwire.sh" "$FIX/scripts/"
 	SUT="$FIX/scripts/check-tier-tripwire.sh"
 	printf 'base\n' > "$FIX/src/sensitive/a.txt"
 	printf 'base\n' > "$FIX/src/util/b.txt"

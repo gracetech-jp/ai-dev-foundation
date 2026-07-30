@@ -2,7 +2,7 @@
 # git pre-push フック — push 前に整合性監査・単体テスト・要件トレーサビリティ・Tierトリップワイヤの4段を実行
 # （make all と同じ構成。docs/rules/quality-gates.md §2）
 # 基盤リポでは4段目は「機微面なし」宣言（docs/requirements/.tier-tripwire-none）で正当スキップし、
-# サービス側では SERVICE.md 由来の機微パターンで実発動する（同一ファイルを配布・ADR-008）。
+# サービス側では PROJECT.md 由来の機微パターンで実発動する（同一ファイルを配布・ADR-008）。
 # インストール: make install-hooks
 
 ROOT="$(git rev-parse --show-toplevel)"

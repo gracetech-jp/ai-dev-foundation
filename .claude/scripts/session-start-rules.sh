@@ -1,13 +1,13 @@
 #!/bin/bash
-# SessionStart hook: SERVICE.md と docs/rules/ の内容を Claude のコンテキストに注入する
+# SessionStart hook: PROJECT.md と docs/rules/ の内容を Claude のコンテキストに注入する
 
 # ---- ルート解決（2026-07-26 フェーズ1: ユーザースコープ配布に対応） ----
 # 共通の .claude を /home/node/.claude へマウントして配る方式では、このスクリプトの位置は
-# 共通側になる。BASH_SOURCE から2階層上を取ると /home/node を指してしまい、SERVICE.md も
+# 共通側になる。BASH_SOURCE から2階層上を取ると /home/node を指してしまい、PROJECT.md も
 # docs/rules も見つからないまま**無言で空の注入**になる。そのためルートは位置ではなく
 # 起動コンテキストから決める。
 #
-#   WORKSPACE   … このプロジェクト（SERVICE.md・docs/requirements の所在）
+#   WORKSPACE   … このプロジェクト（PROJECT.md・docs/requirements の所在）
 #   COMMON_ROOT … 共通基盤（docs/rules の所在）。マーカーを上方向に探索する
 #
 # CLAUDE_PROJECT_DIR は起動ディレクトリを指す（実測）。サブディレクトリ起動でも正しい
@@ -40,9 +40,9 @@ fm_status() {
 	' "$1"
 }
 
-# SERVICE.md
-if [ -f "$WORKSPACE/SERVICE.md" ]; then
-	content+="$(cat "$WORKSPACE/SERVICE.md")"$'\n\n'
+# PROJECT.md
+if [ -f "$WORKSPACE/PROJECT.md" ]; then
+	content+="$(cat "$WORKSPACE/PROJECT.md")"$'\n\n'
 fi
 
 # docs/rules/ はインデックスのみ注入する（全文注入は約54KB/セッションの固定トークン税となるため

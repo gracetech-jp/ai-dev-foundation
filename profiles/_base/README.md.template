@@ -11,13 +11,16 @@ claude
 ```
 
 ## 主要コマンド
-品質ゲートの共通入口（スタック非依存）。詳細・開発用コマンドは SERVICE.md を参照。
+品質ゲートの共通入口（スタック非依存）。詳細・開発用コマンドは PROJECT.md を参照。
 ```bash
 make test        # テスト実行
 make lint        # 静的解析
 make audit-all   # 整合性監査一式
 ```
 
-## 共通ルール更新時
-ai-dev-foundation の CLAUDE.md・docs/rules/ が更新された場合は、
-`./scripts/sync-from-common.sh <共通リポのパス> --apply` で順輸入してください（詳細: docs/rules/backport.md）。
+## 共通ルールの参照について
+共通ルール（CLAUDE.md・docs/rules/）と共通ゲートの実体は ai-dev-foundation にのみ置かれ、
+このリポジトリは**参照するだけ**です。取り込み作業は要りません（基盤が更新されれば次の
+`make` から新しい実体が使われます）。解決の起点はマーカー `.ai-dev-foundation-root` の
+上方探索なので、このリポジトリは基盤リポの `projects/` 配下に置いてください
+（詳細: docs/rules/common-assets.md）。

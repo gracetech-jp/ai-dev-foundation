@@ -18,7 +18,7 @@ AI エージェント（Claude Code）による破壊的操作・秘密情報ア
 - `permissions.deny`：破壊的 git 操作・秘密ファイル（`.env`/鍵/ssh/aws/gcloud 等）の Read を拒否。
 - PreToolUse フック `guard-dangerous.sh`：deny をすり抜ける表記ゆれ・チェイン実行・bash 経由の秘密読み取りを遮断。
 - `permissions.ask`：マイグレーション・パッケージ導入・ワークフロー実行に実行前確認。
-- SessionStart フック：`SERVICE.md`・`docs/rules/` を毎セッション注入。
+- SessionStart フック：`PROJECT.md`・`docs/rules/` を毎セッション注入。
 これら一式を `new-service.sh` で全サービスへ配布する。
 
 ## 理由

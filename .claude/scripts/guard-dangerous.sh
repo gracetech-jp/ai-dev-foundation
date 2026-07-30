@@ -175,15 +175,17 @@ fi
 # （2026-07-24 批准レス化・ADR-008: 要件ディレクトリ docs/requirements/ への書き込み遮断（旧G3）は撤去。
 #   要件は LLM も直接編集できる。トレーサビリティの担保は req-coverage / tier-tripwire の機械ゲートで行う）
 
-# ---- 共通所有ファイルへの bash 経由書き込み遮断（ADR-009: サービス側は編集・還流禁止、順輸入のみ） ----
+# ---- 共通所有ファイルへの bash 経由書き込み遮断（ADR-009 / ADR-010: プロジェクト側は複製も編集もしない） ----
 # 対象は「新規サービス構築後、仕組みを疑わなければ触ることがない」共通所有ファイルに限る。
-# サービス側で編集が前提の箇所（SERVICE.md・Makefile 実装・audit-consistency.sh 肉付け・
+# サービス側で編集が前提の箇所（PROJECT.md・Makefile 実装・audit-consistency.sh 肉付け・
 # docs/requirements/・ci.yml・.gitignore 追記等）は対象外。settings.json の deny と対で機械強制する。
 # 基盤リポ ai-dev-foundation 自身は共通所有ファイルの編集元のため対象外
 # （profiles/_base/ の存在で決定論的に判定。プロジェクトルートは CLAUDE_PROJECT_DIR、無ければ cwd）。
-# 更新の正規経路は sync-from-common.sh の実行のみ（スクリプト起動コマンドは書込系と共起しないため素通し）。
+# 2026-07-30 順輸入を廃止した（ADR-010）。共通所有の実体は共通リポにのみ置き、各プロジェクトは参照する。
+# これによりロックの意味は「配られた複製を編集させない」から「複製をプロジェクト側に発生させない」へ
+# 変わった。パス一覧は据え置く（複製が再び生えるのを防ぐのが目的で、対象が消えても役目は残るため）。
 if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
-	COMMON_OWNED='(CLAUDE\.md|docs/rules/|\.claude/settings\.json|\.claude/scripts/(guard-dangerous|session-start-rules)\.sh|\.claude/skills/(extract-requirements|verify-request)/|\.claude/agents/(consistency-auditor|security-reviewer)\.md|scripts/(pre-push|commit-msg|check-coverage\.sh|check-requirements-coverage\.sh|check-tier-tripwire\.sh|sync-from-common\.sh))'
+	COMMON_OWNED='(CLAUDE\.md|docs/rules/|\.claude/settings\.json|\.claude/scripts/(guard-dangerous|session-start-rules)\.sh|\.claude/skills/(extract-requirements|verify-request)/|\.claude/agents/(consistency-auditor|security-reviewer)\.md|scripts/(pre-push|commit-msg|check-coverage\.sh|check-requirements-coverage\.sh|check-tier-tripwire\.sh))'
 	if printf '%s' "$STRIPPED" | grep -qE "$COMMON_OWNED"; then
 		# a) リダイレクト（> / >> / >|）先が共通所有ファイル
 		#    >| は noclobber 無効化つき上書き。`[^|...]` が直後の | でパイプと誤認し素通ししていたため明示的に許容する。
@@ -216,7 +218,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		#    破壊的コマンド検査と同じセグメント単位で判定する。コマンド全体で1回だけ判定すると、
 		#    正規の骨格同期を1つ含めるだけでチェイン内の別の書き込みまで免除されてしまうため（2026-07-25 是正）。
 		#    例外: 基盤の profiles/_base/ を**コピー元の第1引数**に取る骨格同期だけを通す。
-		#    これはマニフェスト対象外の `.claude/` 等を更新する唯一の正規手順（docs/rules/backport.md §骨格は手動同期）で、
+		#    これはマニフェスト対象外の `.claude/` 等を更新する唯一の正規手順（docs/rules/common-assets.md §骨格は手動同期）で、
 		#    b) が無条件に塞ぐと正規の更新経路そのものが消える。コピー元位置に限定しているので、
 		#    末尾コメントや第2引数に profiles/_base/ を書き足して素通しさせる細工は成立しない。
 		skeleton_sync='^[[:space:]]*(cp|rsync|install)([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^[:space:]]*profiles/_base/'

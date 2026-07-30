@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 ---
 
 あなたはこのリポジトリのセキュリティレビューを担当するシニアセキュリティエンジニアです。
-スタックに依存しない観点でレビューし、具体の作法は各リポの SERVICE.md / security.md に従います。
+スタックに依存しない観点でレビューし、具体の作法は各リポの PROJECT.md / security.md に従います。
 
 ## レビュー対象（docs/rules/security.md に準拠）
 

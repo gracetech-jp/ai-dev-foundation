@@ -1,6 +1,6 @@
 # ADR-009: 逆輸入の廃止と共通所有ファイルの一方通行配布（サービス側編集の機械封鎖）
 
-記録日: 2026-07-24 ／ 対象リポ: ai-dev-foundation ／ 状態: 承認済み（大澤将平・2026-07-24）・実装済み
+記録日: 2026-07-24 ／ 対象リポ: ai-dev-foundation ／ 状態: 一部置換済み（→ 010。配布＝順輸入は廃止。deny＋guard によるロックの決定は現役）
 
 ## 背景 — 解決したかった問題
 
@@ -19,7 +19,7 @@ ADR-003 は「サービス内で育った改善を逆輸入（`backport-to-commo
   `guard-dangerous.sh`（bash 経由の書込遮断）で二重に拒否する。更新の正規経路は順輸入
   （`sync-from-common.sh`）のみ。
 - **例外＝サービス側で編集が前提の箇所は封鎖しない**。封鎖対象は「新規サービス構築後、仕組みを
-  疑わなければ触ることがないファイル」に限る（範囲の正: `docs/rules/backport.md`）。
+  疑わなければ触ることがないファイル」に限る（範囲の正: `docs/rules/common-assets.md`）。
 
 ### 封鎖対象（deny＋guard）
 
@@ -30,7 +30,7 @@ sync-from-common.sh）
 
 ### 封鎖しない（サービス側編集が前提）
 
-`SERVICE.md`・`README.md`・`Makefile`（ターゲット実装）・`scripts/audit-consistency.sh`（肉付け）・
+`PROJECT.md`・`README.md`・`Makefile`（ターゲット実装）・`scripts/audit-consistency.sh`（肉付け）・
 `docs/requirements/**`・`docs/service-rules/**`・`docs/decisions/**`・`.devcontainer/**`・
 `.github/workflows/ci.yml`・`.gitignore`・`.env.example`・`.coverage-floor`・`.req-coverage-baseline`・
 `.tier-tripwire-allow`・サービス独自 skills/agents の**追加**（配布物の丸ごとディレクトリ封鎖はしない）

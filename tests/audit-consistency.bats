@@ -12,7 +12,7 @@ make_sandbox() {
 	mkdir -p "$SB/.claude" "$SB/docs"
 	# common / templates / マーカーは検査層(10)（参照方式への移行中の複製同期検査）の対象。
 	# 複製し忘れると層(10)がサンドボックスで必ず落ちる（2026-07-26 フェーズ0で追加）。
-	for item in Makefile CLAUDE.md .backport-manifest \
+	for item in Makefile CLAUDE.md \
 	            .req-coverage-baseline scripts profiles .github .devcontainer \
 	            common service-templates .ai-dev-foundation-root; do
 		cp -a "$REPO/$item" "$SB/$item"
@@ -109,25 +109,24 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"ロックの退化"*"CLAUDE.md"* ]]
+	# 部分文字列ごとに検査する（1つの glob で順に並べると、別の検査が出す
+	# 「CLAUDE.md」を含む行に引っ張られて**別の理由で緑になる**ため。2026-07-30）
+	[[ "$output" == *"ロックの退化"* ]]
+	[[ "$output" == *"Edit(CLAUDE.md)"* ]]
 }
 
-@test "赤: manifest の配布対象がロックされていないと fail" {
-	make_sandbox
-	echo "scripts/unlocked-thing.sh" >> "$SB/.backport-manifest"
-	run audit
-	[ "$status" -eq 1 ]
-	[[ "$output" == *"共通所有ロックの乖離"*"scripts/unlocked-thing.sh"*"配布 deny にありません"* ]]
-}
+# 旧「manifest の配布対象がロックされていないと fail」は 2026-07-30 に撤去した
+# （順輸入廃止・ADR-010 でマニフェストが無くなり、検査ごと消えたため）。
 
 @test "赤: ロックのコア1件を deny から外すと退化検出で fail（旧 length>0 では素通りしていた）" {
 	make_sandbox
-	jq '.permissions.deny |= map(select(. != "Write(scripts/sync-from-common.sh)" and . != "Edit(scripts/sync-from-common.sh)"))' \
+	jq '.permissions.deny |= map(select(. != "Edit(.claude/scripts/session-start-rules.sh)"))' \
 		"$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
 	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"ロックの退化"*"scripts/sync-from-common.sh"* ]]
+	[[ "$output" == *"ロックの退化"* ]]
+	[[ "$output" == *"Edit(.claude/scripts/session-start-rules.sh)"* ]]
 }
 
 # ---- 検査層(8): 基盤自身のゲート無効化検出（2026-07-25 追加） ----
@@ -159,12 +158,13 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 # ---- 赤: 検査層(10) 参照方式への移行中の複製同期（2026-07-26 フェーズ0） ----
 # 移行期は正本(common/ ・ service-templates/)と旧パスの実体が併存する。片方だけ育つ乖離を機械で止める。
 
-@test "赤: 旧パス側のゲートスクリプトだけ改変すると移行複製の不一致で fail" {
+@test "赤: _base の Dockerfile だけ改変すると複製の不一致で fail" {
 	make_sandbox
-	echo "# drift" >> "$SB/scripts/check-coverage.sh"
+	echo "# drift" >> "$SB/profiles/_base/.devcontainer/Dockerfile"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"移行複製が不一致"*"check-coverage.sh"* ]]
+	[[ "$output" == *"移行複製が不一致"* ]]
+	[[ "$output" == *"Dockerfile"* ]]
 }
 
 @test "赤: composite action 同梱スクリプトだけ改変すると移行複製の不一致で fail" {

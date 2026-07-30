@@ -1,8 +1,10 @@
 #!/bin/bash
 # new-service.sh — 新規サービス雛形の生成（プロファイル合成方式。設計の正: docs/decisions/006-adr-profile-based-bootstrap.md）。
 # profiles/_base/（共通骨格）を展開した上に、--profile で指定されたプロファイルの
-# profile.manifest（add/replace）を重ねて配布する。root 正本（CLAUDE.md・docs/rules/ 等）は
-# _base に複製せず従来どおり root から直接コピーする（正本の二重管理を避ける。ADR-006 §4 の解釈）。
+# profile.manifest（add/replace）を重ねて配布する。
+# 共通所有の実体（CLAUDE.md・docs/rules/・common/scripts/・common/make/）は**配布しない**。
+# 生成先は共通リポの projects/ 配下に置かれ、マーカー .ai-dev-foundation-root 経由で参照する
+# （2026-07-30 順輸入廃止・ADR-010。配る＝複製が生まれるため、複製ゼロを設計として選んだ）。
 #
 # 終了コード: 0=成功 / 1=使い方・引数エラー / 2=manifest 設定エラー（fail-closed）
 set -eu
@@ -65,7 +67,12 @@ if [ ! -f "$PROFILES_DIR/$PROFILE/profile.manifest" ]; then
 	usage
 fi
 
-TARGET="$HOME/projects/${SERVICE_NAME}"
+# 生成先は**共通基盤の projects/ 配下**（参照方式の必須条件）。ここに置かれることで、生成された
+# プロジェクトの Makefile・SessionStart フックがマーカー .ai-dev-foundation-root を上方探索して
+# 共通側を解決できる。基盤の兄弟に置くと解決に失敗し、make が即エラーになる（fail-closed）。
+# 生成先の差し替えはテスト用（隔離された基盤の複製から生成するため）。
+PROJECTS_ROOT="${NEW_SERVICE_PROJECTS_ROOT:-$ROOT/projects}"
+TARGET="${PROJECTS_ROOT}/${SERVICE_NAME}"
 if [ -d "$TARGET" ]; then
 	die_usage "${TARGET} は既に存在します"
 fi
@@ -76,7 +83,7 @@ BASE="$PROFILES_DIR/_base"
 # ---- 手順1: _base（共通骨格）＋ root 正本の展開（ADR-006 §5.1） ----
 
 # ディレクトリ作成
-mkdir -p "${TARGET}"/{.devcontainer,.claude,.github/workflows,docs/rules,docs/requirements,docs/service-rules,docs/decisions,scripts}
+mkdir -p "${TARGET}"/{.devcontainer,.claude,.github/workflows,docs/requirements,docs/service-rules,docs/decisions,scripts}
 
 # devcontainer設定をコピー
 cp "$BASE/.devcontainer/Dockerfile" "${TARGET}/.devcontainer/"
@@ -94,10 +101,12 @@ cp -a "$BASE/.claude/skills/." "${TARGET}/.claude/skills/"
 cp -a "$BASE/.claude/agents/." "${TARGET}/.claude/agents/"
 chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/scripts/guard-dangerous.sh"
 
-# 共通ルールをそのままコピー（root 正本。_base には複製しない）
-# docs/rules 配下はディレクトリ単位でコピーする（個別指定だと新規ルールの配布漏れが起きるため）
-cp "$ROOT/CLAUDE.md" "${TARGET}/CLAUDE.md"
-cp "$ROOT/docs/rules/"*.md "${TARGET}/docs/rules/"
+# 共通ルール（CLAUDE.md・docs/rules/）は**配布しない**。実体は共通リポにのみ置き、参照する
+# （2026-07-30 順輸入廃止・ADR-010）:
+#   - CLAUDE.md  … Claude Code が起動位置から上位ディレクトリを遡って連結する。生成先が共通リポの
+#                  projects/ 配下にあるため、直下に無くても共通リポの CLAUDE.md が読み込まれる
+#   - docs/rules … session-start-rules.sh がマーカー .ai-dev-foundation-root を上方探索し、
+#                  共通側から索引を生成する（1件も解決できなければ警告を注入＝fail-loud）
 
 # サービス固有ルールの雛形を配布（CLAUDE.md が docs/service-rules/consistency.md を参照するため、
 # 雛形が無いと全サービスでリンク切れになる。中身はサービスが自スタックで肉付けする＝逆輸入対象外）
@@ -108,31 +117,24 @@ cp "$BASE/docs/decisions/"*.md "${TARGET}/docs/decisions/"
 # 要件トレーサビリティの雛形（要件テンプレ等）を配布（実要件は各サービスが後付け。批准レス運用: ADR-008）
 cp "$BASE/docs/requirements/"*.md "${TARGET}/docs/requirements/"
 
-# 品質ゲート一式（Makefile契約・フック・監査雛形・カバレッジ機構・CIワークフロー）を配布
+# 品質ゲート一式（Makefile契約・監査雛形・カバレッジ機構・CIワークフロー）を配布。
+# 共通スクリプト（pre-push・commit-msg・check-*.sh）は**配らない**。実体は共通リポの
+# common/scripts/ にあり、サービスは参照する（2026-07-30 順輸入廃止・ADR-010）:
+#   - git フック  … Makefile の install-hooks が common/scripts/ へ ln -sf する
+#   - ゲート実装  … common/make/gates.mk が common/scripts/ を直接実行する
+#   - CI          … .github/actions/ の composite action を uses: で参照する
 cp "$BASE/Makefile" "${TARGET}/Makefile"
 cp "$BASE/scripts/audit-consistency.sh" "${TARGET}/scripts/"
-cp "$ROOT/scripts/pre-push" "${TARGET}/scripts/"
-cp "$ROOT/scripts/commit-msg" "${TARGET}/scripts/"           # Conventional Commits 検証(中立)
-cp "$ROOT/scripts/check-coverage.sh" "${TARGET}/scripts/"    # カバレッジ・ラチェット判定(中立)
-cp "$ROOT/scripts/check-requirements-coverage.sh" "${TARGET}/scripts/"  # 要件↔テスト検証(中立)
-cp "$ROOT/scripts/check-tier-tripwire.sh" "${TARGET}/scripts/"          # Tierトリップワイヤ(中立)
 cp "$BASE/.coverage-floor" "${TARGET}/.coverage-floor"  # フロア初期値(サービスがラチェット)
 cp "$BASE/.req-coverage-baseline" "${TARGET}/.req-coverage-baseline"  # 未カバー要件の移行猶予(空)
 cp "$BASE/.tier-tripwire-allow" "${TARGET}/.tier-tripwire-allow"      # トリップワイヤ例外allowlist(空)
-chmod +x "${TARGET}/scripts/audit-consistency.sh" "${TARGET}/scripts/pre-push" \
-         "${TARGET}/scripts/commit-msg" "${TARGET}/scripts/check-coverage.sh" \
-         "${TARGET}/scripts/check-requirements-coverage.sh" "${TARGET}/scripts/check-tier-tripwire.sh"
+chmod +x "${TARGET}/scripts/audit-consistency.sh"
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp "$BASE/.github/workflows/ci.yml" "${TARGET}/.github/workflows/ci.yml"
 
-# 順輸入（共通→サービス）ツールを配布（逆輸入は廃止・配布は一方通行。ADR-009。
-# マニフェストは共通リポ側が正のためサービスへは配らない）
-cp "$ROOT/scripts/sync-from-common.sh" "${TARGET}/scripts/"
-chmod +x "${TARGET}/scripts/sync-from-common.sh"
-
-# SERVICE.mdをテンプレートからコピー
-cp "$BASE/SERVICE.md.template" "${TARGET}/SERVICE.md"
-sed -i "s/\[サービス名\]/${SERVICE_NAME}/g" "${TARGET}/SERVICE.md"
+# PROJECT.mdをテンプレートからコピー
+cp "$BASE/PROJECT.md.template" "${TARGET}/PROJECT.md"
+sed -i "s/\[サービス名\]/${SERVICE_NAME}/g" "${TARGET}/PROJECT.md"
 
 # .gitignore / .env.example / README をテンプレートから配布
 # （.claude/ 配下は認証情報・セッションログ等を含むため丸ごとは追跡しないが、
@@ -209,13 +211,13 @@ for p in ${overlay_paths[@]+"${overlay_paths[@]}"}; do
 	sed -i "s/SERVICE_NAME/${SERVICE_NAME}/g; s/\[サービス名\]/${SERVICE_NAME}/g" "$TARGET/$p"
 done
 
-echo "✅ ~/projects/${SERVICE_NAME} を作成しました（プロファイル: ${PROFILE}）"
+echo "✅ ${TARGET} を作成しました（プロファイル: ${PROFILE}）"
 echo ""
 echo "作成されたファイル:"
 find "${TARGET}" -not -path '*/.claude/*' | sort
 echo ""
 echo "▼ 生成後に対応する項目（要件トレーサビリティ）:"
-echo "  - SERVICE.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none をコミットして宣言する"
+echo "  - PROJECT.md「Tierトリップワイヤ設定」を埋める。機微面が無ければ docs/requirements/.tier-tripwire-none をコミットして宣言する"
 echo "  - 既存仕様の要件化は extract-requirements スキルで docs/requirements/ に起こす（批准レス運用: ADR-008）"
 echo ""
 
