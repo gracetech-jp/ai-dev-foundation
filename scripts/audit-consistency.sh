@@ -601,6 +601,24 @@ elif [ ! -f "$GUARD_HOOK" ]; then
 	report "$GUARD_HOOK がありません（第3層の実体が消えています。ADR-012）"
 fi
 
+echo "[audit] (15) ワークフロー式の文脈検査（GitHub Actions）..."
+# GitHub Actions は式で参照できる文脈が場所ごとに違う。**使えない文脈を書くとファイル全体が
+# 「Invalid workflow file」になり、`on:` すら評価されないまま push に紐づいて0秒で失敗する**。
+# 2026-08-04 に実際に発生した: `on: workflow_call` だけの service-ci.yml が、push のたびに
+# 0秒で失敗していた。原因は step の `if:` で `secrets` を参照していたこと。
+#
+# ここで見るのは**実際に踏んだ1件だけ**にする。文脈の可用性表を丸ごと実装すると、
+# 仕様変更で嘘をつくうえ、誤検出でワークフロー編集の邪魔になる（ゲートは踏んだ穴から育てる）。
+# `secrets` は `with:` と job-level `env:` では使えるが、`if:` では使えない。
+# 回避形は「job-level env で真偽値に落として、step は env を見る」。
+for wf in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/actions/*/action.yml; do
+	[ -f "$wf" ] || continue
+	rel="${wf#"$ROOT"/}"
+	if grep -nE '^[[:space:]]*if:.*secrets\.' "$wf" >/dev/null 2>&1; then
+		report "ワークフロー式の文脈エラー: $rel の if: が secrets を参照しています（if: では使えません。job-level env に落としてから env を見ること。ファイル全体が Invalid workflow file になります）"
+	fi
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

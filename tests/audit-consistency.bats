@@ -493,6 +493,45 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	[[ "$output" == *"/home/node/.claude へマウントしていません"* ]]
 }
 
+# ---- 赤/緑: 検査層(15) ワークフロー式の文脈検査（2026-08-04・実際に踏んだ失敗の再発防止） ----
+
+@test "赤: step の if: が secrets を参照すると fail する" {
+	make_sandbox
+	# これを書くとワークフロー全体が Invalid workflow file になり、on: すら評価されずに
+	# push で0秒失敗する（2026-08-04 に service-ci.yml で実際に発生した）
+	cat > "$SB/.github/workflows/dummy.yml" <<-'YAML'
+		name: dummy
+		on: [push]
+		jobs:
+		  x:
+		    runs-on: ubuntu-latest
+		    steps:
+		      - run: echo hi
+		        if: secrets.SOME_TOKEN != ''
+	YAML
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"ワークフロー式の文脈エラー"* ]]
+}
+
+@test "緑: job-level env に落としてから env を見る形は通る（正しい回避形）" {
+	make_sandbox
+	cat > "$SB/.github/workflows/dummy.yml" <<-'YAML'
+		name: dummy
+		on: [push]
+		jobs:
+		  x:
+		    runs-on: ubuntu-latest
+		    env:
+		      HAS_TOKEN: ${{ secrets.SOME_TOKEN != '' }}
+		    steps:
+		      - run: echo hi
+		        if: env.HAS_TOKEN == 'true'
+	YAML
+	run audit
+	[ "$status" -eq 0 ]
+}
+
 @test "赤: フック本体が消えると第3層の実体喪失として fail する" {
 	make_sandbox
 	rm "$SB/.claude/scripts/guard-dangerous.sh"

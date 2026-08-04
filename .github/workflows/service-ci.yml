@@ -100,17 +100,25 @@ jobs:
   gates:
     if: inputs.db == 'none'
     runs-on: ${{ inputs.runs-on }}
+    # secrets 文脈は step の if: では使えない（式の検証で弾かれ、ワークフロー全体が
+    # 「Invalid workflow file」になる。2026-08-04 に実際に発生）。job-level env なら参照できるので、
+    # ここで真偽値へ落としてから step 側は env を見る。
+    env:
+      HAS_APP_TOKEN: ${{ secrets.app-id != '' }}
     steps:
       # 共通基盤（private）を読むための短命トークン。App 未設定なら空のまま進み、
       # public リポジトリならトークン無しで checkout できる（未設定分岐）。
       - uses: actions/create-github-app-token@v2
         id: app-token
-        if: secrets.app-id != ''
+        if: env.HAS_APP_TOKEN == 'true'
         with:
           app-id: ${{ secrets.app-id }}
           private-key: ${{ secrets.private-key }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ inputs.foundation-repository }}
+          # repositories は**リポジトリ名のみ**を取る（owner/repo 形式は受け付けない）。
+          # 式には split が無く inputs.foundation-repository から名前だけを取り出せないため、
+          # ここは指定しない。App のインストール範囲を共通基盤1本に限定してあるので、
+          # 省略してもトークンの到達範囲はそのリポジトリだけになる（最小権限は維持される）。
 
       # 1本目: 共通基盤をワークスペース直下へ。**必ずプロジェクトより先**
       # （逆順にすると projects/ を含むワークスペースへ展開されて配置が壊れる）。
@@ -146,6 +154,8 @@ jobs:
   gates-db:
     if: inputs.db == 'postgres'
     runs-on: ${{ inputs.runs-on }}
+    env:
+      HAS_APP_TOKEN: ${{ secrets.app-id != '' }}   # 理由は gates ジョブのコメント参照
     services:
       postgres:
         image: ${{ inputs.db-image }}
@@ -161,12 +171,15 @@ jobs:
     steps:
       - uses: actions/create-github-app-token@v2
         id: app-token
-        if: secrets.app-id != ''
+        if: env.HAS_APP_TOKEN == 'true'
         with:
           app-id: ${{ secrets.app-id }}
           private-key: ${{ secrets.private-key }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ inputs.foundation-repository }}
+          # repositories は**リポジトリ名のみ**を取る（owner/repo 形式は受け付けない）。
+          # 式には split が無く inputs.foundation-repository から名前だけを取り出せないため、
+          # ここは指定しない。App のインストール範囲を共通基盤1本に限定してあるので、
+          # 省略してもトークンの到達範囲はそのリポジトリだけになる（最小権限は維持される）。
 
       - uses: actions/checkout@v4
         with:
