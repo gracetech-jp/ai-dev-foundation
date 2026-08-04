@@ -51,6 +51,21 @@ EXTRA_LIST="/usr/local/share/extra-allowed-domains.txt"
 VERIFY_ALLOWED="https://api.anthropic.com"
 VERIFY_BLOCKED="https://example.com"
 
+# 適用結果の記録先。sudo を1本に絞った結果、非 root では iptables のルールを読めない
+# （読めてしまうなら消せてしまう）。「本当に適用されたのか」を後から確かめる唯一の手段が
+# これになるため、成功・失敗の両方を必ず書く。root 所有・全員読み取り可。
+STATUS_FILE="/var/log/init-firewall.status"
+
+write_status() {
+	# write_status <ok|failed> <補足>
+	{
+		echo "status=$1"
+		echo "at=$(date -Is)"
+		echo "detail=$2"
+	} > "$STATUS_FILE" 2>/dev/null || true
+	chmod 0444 "$STATUS_FILE" 2>/dev/null || true
+}
+
 die() {
 	echo "[firewall] ❌ $1" >&2
 	exit 1
@@ -61,6 +76,7 @@ die() {
 fail_closed() {
 	local rc=$1
 	echo "[firewall] ⚠️ 設定に失敗しました（exit=$rc）。fail-closed で全遮断します。" >&2
+	write_status "failed" "exit=$rc（全遮断で終了。ホスト側で回復すること）"
 	iptables -P INPUT DROP 2>/dev/null || true
 	iptables -P FORWARD DROP 2>/dev/null || true
 	iptables -P OUTPUT DROP 2>/dev/null || true
@@ -159,4 +175,5 @@ if ! curl --connect-timeout 5 -s -o /dev/null "$VERIFY_ALLOWED" 2>/dev/null; the
 	die "検証に失敗: $VERIFY_ALLOWED へ到達できません（許可が効いていません）"
 fi
 
+write_status "ok" "policy=DROP domains=${#domains[@]}"
 echo "[firewall] ✅ 外向き既定拒否を適用しました（許可 ${#domains[@]} ドメイン）"

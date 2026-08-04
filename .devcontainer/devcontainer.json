@@ -1,13 +1,32 @@
 {
+  // 基盤リポジトリ自身の開発環境。隔離境界として設計する（ADR-013 第1層）。
+  //
+  // マウントは「このリポジトリ」と「共通の .claude」の2本だけ。
+  // ホームディレクトリ・SSH 秘密鍵・Docker ソケット・兄弟ディレクトリは貼らない。
+  // 2026-08-04 以前は ${localWorkspaceFolder}/.. （ホスト上の親ディレクトリ全体）と
+  // ${localEnv:HOME}/.ssh を貼っていた。前者は ADR-010 でプロジェクトを projects/ 配下へ
+  // 移した時点で意味が変わったまま残っていたもの、後者は秘密鍵そのもので、
+  // 公式ドキュメントも ~/.ssh やクラウド認証情報をコンテナへ貼らないよう明記している。
+  //
+  // 帰結: origin が SSH のため、コンテナ内からの git fetch / pull はできない。
+  // リモート操作はホストで行う（push は元々ホスト実施。ADR-013 の作業量の表を参照）。
   "name": "Claude Code Dev Container",
   "build": { "dockerfile": "Dockerfile" },
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "mounts": [
-    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated",
-    "source=${localWorkspaceFolder}/..,target=/home/node/projects,type=bind,consistency=delegated",
-    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
+    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated"
   ],
+
+  // ファイアウォール（init-firewall.sh）が iptables/ipset を操作するために要る。
+  // これが無いと postStartCommand が失敗し、waitFor によりコンテナが準備完了にならない。
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
+
+  // 運用テレメトリ（Datadog 2ホスト）は許可リストに入れない。送信自体を止める（ADR-013）
+  "containerEnv": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+
   "remoteUser": "node",
   "customizations": {
     "vscode": {
@@ -22,5 +41,10 @@
       }
     }
   },
-  "postCreateCommand": "echo 'Container ready! Run: claude'"
+
+  // 外向き既定拒否を適用する。postCreate ではなく postStart なのは、iptables の設定が
+  // コンテナ再起動で消えるため（作成時1回では2回目以降の起動で無防備になる）。
+  // waitFor により、遮断が完了するまでコンテナは準備完了にならない。
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
 }
