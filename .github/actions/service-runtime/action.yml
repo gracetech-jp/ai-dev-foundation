@@ -1,0 +1,78 @@
+name: service-runtime
+description: プロジェクトのスタックに応じた言語ランタイムと依存を導入する（CI で devcontainer を使わないための層）
+
+# 基盤リポジトリ**内部専用**の composite action（相対参照。ADR-011 注意事項）。
+#
+# CI では devcontainer をビルドしないため、ローカルなら Dockerfile が担っていた
+# 「言語ランタイムの用意」をここが担う。スタック固有の知識をここに置くのは
+# ゴールデンパスの原則（言語ごとの lint ツールまで基盤が持たない）に反しないよう、
+# **導入だけ**に限定する——何を実行するかは make ターゲット側（プロジェクトの責務）。
+#
+# runtime: none を既定にしてあるのは、基盤のゲート（bash 完結）だけを回す構成を
+# 素通りで動かすため。未知の値は fail-closed で止める（黙って何も入れない状態を作らない）。
+
+inputs:
+  runtime:
+    description: none | node | python | both
+    required: false
+    default: "none"
+  node-version:
+    required: false
+    default: "24"
+  python-version:
+    required: false
+    default: "3.12"
+  package-manager:
+    description: pnpm | npm | uv | poetry（空なら依存導入をしない）
+    required: false
+    default: ""
+  project-dir:
+    description: 依存導入を行うディレクトリ
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: ランタイム指定の検証（fail-closed）
+      shell: bash
+      run: |
+        case "${{ inputs.runtime }}" in
+          none|node|python|both) ;;
+          *) echo "::error::runtime が不正です: '${{ inputs.runtime }}'（none|node|python|both）"; exit 2 ;;
+        esac
+        case "${{ inputs.package-manager }}" in
+          ""|pnpm|npm|uv|poetry) ;;
+          *) echo "::error::package-manager が不正です: '${{ inputs.package-manager }}'"; exit 2 ;;
+        esac
+
+    # pnpm は setup-node の cache: pnpm より前に入れる必要がある（キャッシュ解決に pnpm が要るため）
+    - uses: pnpm/action-setup@v4
+      if: inputs.package-manager == 'pnpm'
+
+    - uses: actions/setup-node@v4
+      if: inputs.runtime == 'node' || inputs.runtime == 'both'
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.package-manager == 'pnpm' && 'pnpm' || (inputs.package-manager == 'npm' && 'npm' || '') }}
+        cache-dependency-path: ${{ inputs.project-dir }}
+
+    - uses: actions/setup-python@v5
+      if: inputs.runtime == 'python' || inputs.runtime == 'both'
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - uses: astral-sh/setup-uv@v5
+      if: inputs.package-manager == 'uv'
+
+    - name: 依存導入
+      if: inputs.package-manager != ''
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}
+      run: |
+        set -eu
+        case "${{ inputs.package-manager }}" in
+          pnpm)   pnpm install --frozen-lockfile ;;
+          npm)    npm ci ;;
+          uv)     uv sync --frozen ;;
+          poetry) pipx install poetry && poetry install --no-interaction ;;
+        esac

@@ -12,7 +12,7 @@
 
 `scripts/new-service.sh` は現状、位置引数1つ（サービス名）のみを受け、分岐のない直列コピーで「スタック非依存の素の雛形」を生成する。生成物のスタック具体化（Dockerfile への Node 追記、Makefile のコマンド実装など）と CI 緑化は、すべて生成後の手作業に委ねられている。
 
-このため、静的サイト（HP/LP）を作るたびに、また動的 Web アプリ（SumAI Desk 系）を作るたびに、同じ緑化作業を毎回繰り返す必要がある。目標は「シェルを叩いた直後に、スタックが決まり土台が動く状態で、設計→実装→テストに集中できる」こと。
+このため、静的サイト（HP/LP）を作るたびに、また動的 Web アプリを作るたびに、同じ緑化作業を毎回繰り返す必要がある。目標は「シェルを叩いた直後に、スタックが決まり土台が動く状態で、設計→実装→テストに集中できる」こと。
 
 ## 2. 決定
 
@@ -36,8 +36,8 @@
 
 | プロファイル | 対象 | スタック | 初期状態 |
 |---|---|---|---|
-| `product-static` | 自社の HP / LP（グレイステックHP、SumAI Desk LP）| Astro SSG（Node 24 / pnpm 10）+ Cloudflare Pages Functions | `display-green` |
-| `product-web` | 自社の動的アプリ（SumAI Desk 系）| Python/FastAPI + PostgreSQL（compose別コンテナ）| `full-red` |
+| `product-static` | 自社の HP / LP | Astro SSG（Node 24 / pnpm 10）+ Cloudflare Pages Functions | `display-green` |
+| `product-web` | 自社の動的アプリ | Python/FastAPI + PostgreSQL（compose別コンテナ）| `full-red` |
 
 > **v2改訂の経緯**: 当初は技術形態のみの `static-site` / `web-app` で始めた。しかし `web-app` に FastAPI/PostgreSQL を焼こうとした際、「受託案件では顧客要望で Python も PostgreSQL も使わない可能性がある」ことに直面。原因は、スタックを固定できる自社プロダクトと、固定できない受託を、`web-app` という1つの箱に押し込んでいたこと。事業形態軸を足すことで、自社（固定してよい）と受託（固定しない）を分離し、両立させた。フェーズ2で作った `static-site` は `product-static` にリネームする。
 
@@ -53,7 +53,7 @@
 **危険地帯 — `product-web` プロファイル**:
 - PostgreSQL・Python/FastAPI を土台として入れるのは**スタック**であり許容（OK）。これは「自社プロダクトは全部この構成でいく」と自分で決められるから焼ける。
 - RLS ポリシー、テナント概念、マイグレーションのドメイン雛形を入れるのは**ドメイン**であり禁止（NG）。
-- `product-web` プロファイルは「FastAPI + PostgreSQL が起動しビルド/テストが回る土台」まで。そこにドメイン構造を含めた瞬間、それは共通プロファイルではなく sumai-desk 専用金型になる。
+- `product-web` プロファイルは「FastAPI + PostgreSQL が起動しビルド/テストが回る土台」まで。そこにドメイン構造を含めた瞬間、それは共通プロファイルではなく特定サービス専用の金型になる。
 
 > なぜ自社プロダクトは Python/PostgreSQL を焼けて、受託は焼けないのか: 自社プロダクトのスタックは*自分で決める*ので固定できる（`product-web`）。受託のスタックは*顧客が決める*ので固定できない（将来の `contract-web` はスタックゼロ・full-red だけを配る想定）。この非対称性が、事業形態で軸を割った理由。
 
@@ -230,4 +230,4 @@ manifest の `failclosed_profile` キーが取りうる値は、次の**2種に�
 
 1. 本ADRを人間（大澤）が承認 → ステータスを「承認済み」に更新し Notion へ ADR 登録。
 2. 承認済みADRを添えて、現物リポを読めるローカルLLM/Claude Code に C-1〜C-8 の実装を依頼。
-3. 実装後、HP を `./scripts/new-service.sh grace-tech-hp --profile product-static` で生成し、基盤の検証を兼ねる。
+3. 実装後、HP を `./scripts/new-service.sh <サービス名> --profile product-static` で生成し、基盤の検証を兼ねる。

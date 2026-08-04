@@ -49,6 +49,13 @@ make tier-tripwire # 基盤ではスキップ（配布物。サービス側で�
 make install-hooks # pre-push / commit-msg フックの導入
 ```
 
+```bash
+bash scripts/verify-isolation.sh   # 隔離境界（ADR-013 第1層）の実測。Rebuild のたびに1回流す
+```
+
+設定が正しいことは `make audit-all` の検査(13)が見るが、**その設定で実際に遮断されるか**は
+コンテナを動かさないと分からない。こちらは実測（適用スタンプ + 実通信）を担う。
+
 ## ディレクトリ構成
 
 各ディレクトリの詳細は**直下の README** を参照する（ここは直下の一覧のみ。所在の管理方法は
@@ -73,7 +80,9 @@ ai-dev-foundation/
 ├── .req-coverage-baseline      # 未カバー要件の免除リスト（Tier B/C のみ・空が既定）
 ├── .tier-tripwire-allow        # トリップワイヤ例外の allowlist（空が既定）
 ├── CLAUDE.md                   # AI駆動開発の共通ルール（全プロジェクトが上位探索で読む正本）
+├── LICENSE                     # MIT
 ├── Makefile                    # 品質ゲートのターゲット契約（make all / test / audit-all …）
-└── README.md                   # このファイル
+├── README.md                   # このファイル
+└── SECURITY.md                 # 脆弱性報告の窓口
 ```
 

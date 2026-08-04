@@ -41,10 +41,13 @@
 - **composite action の同梱スクリプト**（`.github/actions/*/check-*.sh`）
   … `$GITHUB_ACTION_PATH` から読むため同梱が必須。
 - **`profiles/_base/.devcontainer/Dockerfile`** … `new-service.sh` が `profiles/_base` を読むため。
-- **`.claude/` 骨格**（`settings.json`・guard・session-start・配布 skills/agents）
+- **`.claude/` 骨格**（`settings.json`・配布 skills/agents）
   … Claude Code がプロジェクトルートを見るため。共通リポでは `profiles/_base/.claude/...` に
   置かれるものがプロジェクトでは `.claude/...` に来るなど**パスが 1:1 対応しない**。
-  ユーザースコープ配布（`/home/node/.claude`）への移行で複製ゼロに向かっている。
+  **フック本体（guard-dangerous.sh・session-start-rules.sh）は 2026-08-04 に対象外になった**
+  （ADR-012 フェーズ2）。実体は共通リポの `.claude/scripts/` 1箇所だけで、devcontainer が
+  `/home/node/.claude`（ユーザースコープ）へマウントして配る。**手動同期は不要**であり、
+  配布側に複製が生えたら監査の検査(3)が赤にする。
 
 これらは**基盤側で変更したら手でコピーして揃える**。複製ずれは基盤の整合性監査が機械検出する
 （`audit-consistency.sh` 検査(6)(10)）。手動コピーは共通所有ロックの**例外として通る**が、
@@ -53,7 +56,7 @@
 
 ```bash
 # 例: 基盤の骨格をプロジェクトへ手で揃える（この形だけがロックを通る）
-cp ~/projects/ai-dev-foundation/profiles/_base/.claude/scripts/guard-dangerous.sh .claude/scripts/guard-dangerous.sh
+cp ~/projects/ai-dev-foundation/profiles/_base/.claude/agents/consistency-auditor.md .claude/agents/consistency-auditor.md
 ```
 
 ## 共通所有ファイルの範囲（プロジェクト側で触らない領域）
@@ -61,7 +64,7 @@ cp ~/projects/ai-dev-foundation/profiles/_base/.claude/scripts/guard-dangerous.s
 **「新規プロジェクト構築後、仕組みを疑わなければ触ることがないファイル」だけ**が共通所有。
 
 - 🔒 プロジェクト側で編集も**複製の作成**もしない（deny＋guard で機械拒否）:
-  `CLAUDE.md`・`docs/rules/`・`.claude/settings.json`・`.claude/scripts/`（guard・session-start）・
+  `CLAUDE.md`・`docs/rules/`・`.claude/settings.json`・`.claude/scripts/`（共通側の実体。プロジェクトには置かない）・
   配布 skills（extract-requirements / verify-request）・配布 agents（consistency-auditor /
   security-reviewer）・`scripts/`（pre-push・commit-msg・check-coverage.sh・
   check-requirements-coverage.sh・check-tier-tripwire.sh）

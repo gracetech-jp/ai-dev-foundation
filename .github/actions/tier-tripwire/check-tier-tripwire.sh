@@ -60,7 +60,7 @@ TEST_RE="${TIER_TRIPWIRE_TEST_RE:-(^|/)(tests?|fixtures?)/|(^|/)test_|_test\.|\.
 # ファイル（Makefile 等）は、grep すれば当然パターンに一致するが機微コードではない。除外しないと
 # 定義元を触るたびに永久に赤になる。未設定なら何も除外しない（fail-closed 維持）。
 # *.md は is_docs が既に軽微扱いのため、通常ここに書くのは Makefile 等の非 docs だけでよい。
-# （2026-07-25 sumai-desk から基盤へ取り込み。ADR-009 以降、共通所有ファイルの改善は基盤で行う）
+# （2026-07-25 あるサービスから基盤へ取り込み。ADR-009 以降、共通所有ファイルの改善は基盤で行う）
 SELF_RE="${TIER_TRIPWIRE_SELF_RE:-}"
 
 # ---- front-matter パーサ（check-requirements-coverage.sh と同仕様） ----

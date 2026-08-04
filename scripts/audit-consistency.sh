@@ -66,22 +66,26 @@ if grep -nE '^[[:space:]]*cp[[:space:]].*(CLAUDE\.md|docs/rules/)' "$NS" >/dev/n
 	report "new-service.sh が CLAUDE.md / docs/rules/ を配布しています（参照方式の退化。ADR-010 では配らない）"
 fi
 # 品質ゲート・Claudeガードレール・devcontainer一式が新サービスへ配布されているか
-# （配布行の削除・退化を検出）。特に guard-dangerous.sh / settings.json / session-start-rules.sh は
-# 安全機構の配布そのものであり、退化すると新サービスがガード無しで生まれるため必ず含める。
+# （配布行の削除・退化を検出）。settings.json は安全機構（deny）の配布そのものであり、
+# 退化すると新サービスがルール無しで生まれるため必ず含める。
+# フック本体（guard-dangerous.sh / session-start-rules.sh）は 2026-08-04 に配布対象から外した
+# （ADR-012 フェーズ2・案A）。複製を配ると `$CLAUDE_PROJECT_DIR` 依存のフック定義が各プロジェクトに
+# 残り、サブディレクトリ起動で無警告に素通しする。実体はユーザースコープ1本に集約し、
+# 配布経路は devcontainer のマウントが担う（検査(13)がマウントの実在を強制する）。
 # ディレクトリ単位で配布されるもの（skills/agents/service-rules/decisions）は basename がディレクトリ名。
 # 共通スクリプト（pre-push・commit-msg・check-*.sh）は配布対象から外した（ADR-010。参照で解決する）。
 for req in \
 	scripts/audit-consistency.sh \
 	profiles/_base/Makefile profiles/_base/.github/workflows/ci.yml profiles/_base/.editorconfig profiles/_base/.coverage-floor \
-	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
-	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
+	profiles/_base/.claude/settings.json profiles/_base/.claude/skills profiles/_base/.claude/agents \
 	profiles/_base/.devcontainer/Dockerfile profiles/_base/.devcontainer/postCreate.sh profiles/_base/.devcontainer/devcontainer.json \
 	profiles/_base/.devcontainer/init-firewall.sh \
 	profiles/_base/gitignore.template profiles/_base/.env.example \
 	profiles/_base/PROJECT.md.template profiles/_base/README.md.template \
 	profiles/_base/docs/requirements \
 	profiles/_base/.req-coverage-baseline profiles/_base/.tier-tripwire-allow \
-	profiles/_base/docs/service-rules profiles/_base/docs/decisions; do
+	profiles/_base/docs/service-rules profiles/_base/docs/decisions \
+	profiles/_base/scripts/verify-guardrails.md; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
 		report "new-service.sh が $base を新サービスへ配布していない（配布漏れ）"
@@ -182,11 +186,19 @@ while IFS= read -r rel; do
 	fi
 done < <(
 	{
-		find .claude/scripts .claude/skills .claude/agents -type f 2>/dev/null
-		find profiles/_base/.claude/scripts profiles/_base/.claude/skills profiles/_base/.claude/agents -type f 2>/dev/null \
+		find .claude/skills .claude/agents -type f 2>/dev/null
+		find profiles/_base/.claude/skills profiles/_base/.claude/agents -type f 2>/dev/null \
 			| sed 's|^profiles/_base/||'
 	} | sort -u
 )
+# フック本体は配布しない（2026-08-04・ADR-012 フェーズ2・案A）。実体はユーザースコープ1本で、
+# 配布側に複製が**再び生えたら赤にする**。複製が生えると `$CLAUDE_PROJECT_DIR` 依存のフック定義も
+# 一緒に戻り、サブディレクトリ起動で無警告に素通しする構成へ逆戻りするため。
+for dead in profiles/_base/.claude/scripts service-templates/claude/scripts; do
+	if [ -d "$ROOT/$dead" ] && [ -n "$(find "$ROOT/$dead" -type f 2>/dev/null)" ]; then
+		report "配布側にフック複製が再発しています: $dead（ADR-012 フェーズ2でユーザースコープ1本に集約した）"
+	fi
+done
 # settings.json は root にのみローカル固有キー（model/theme/通知フック等）があるため全文一致は課さず、
 # 配布の本体である permissions ブロックのみを正規化（キー順・配列内順序を吸収）して比較する。
 # 共通所有ファイルのロック deny（ADR-009: CLAUDE.md・docs/rules/ 等のサービス側編集禁止）は
@@ -289,13 +301,30 @@ if [ -f "$ROOT/docs/requirements/.tier-tripwire-none" ]; then
 	report "基盤リポに docs/requirements/.tier-tripwire-none があります（Tierトリップワイヤ全体が正当スキップされ無効化されます）"
 fi
 
-# CI ジョブの退化検出。pre-push と CI の二重化（ADR-008「維持したもの」）は、片方から段が
+# CI ゲートの退化検出。pre-push と CI の二重化（ADR-008「維持したもの」）は、片方から段が
 # 消えても誰も気づかないまま成立しなくなる。実際 tier-tripwire ジョブが欠落していた（2026-07-25 是正）。
+#
+# 【2026-08-04 改訂・ADR-011】判定を「ジョブ名の直値一致」から「ゲートが実行されていること」へ変えた。
+# 旧実装は `^  tier-tripwire:$` のようなジョブ名の一致で見ており、**改名・分割・reusable workflow への
+# 移行のいずれでも壊れる**。この検査が守っている本質はジョブ名ではなく「6つのゲートが CI のどこかで
+# 走ること」なので、そちらを直接見る。reusable 呼び出し形（common-gates / stack-gates に列挙する形）も
+# 許容するため、将来サービス側の CI がどちらの形になっても検出力が落ちない。
+# 基盤自身は reusable を呼ばない方針（ADR-011 注意事項）だが、検査は両方の形を受け付ける。
 CI_YML="$ROOT/.github/workflows/ci.yml"
 if [ -f "$CI_YML" ]; then
-	for job in audit lint test req-coverage tier-tripwire secret-scan; do
-		if ! grep -qE "^[[:space:]]{2}${job}:[[:space:]]*$" "$CI_YML"; then
-			report ".github/workflows/ci.yml に必須ジョブ '${job}' がありません（CI と pre-push の二重化が崩れます）"
+	# ゲート名:そのゲートが実行されたと判定できる正規表現（make 直呼び | reusable への受け渡し）
+	CI_GATES=(
+		"audit-all:(make[[:space:]]+audit-all|common-gates:.*audit-all)"
+		"lint:(make[[:space:]]+lint|stack-gates:.*lint)"
+		"test:(make[[:space:]]+test|stack-gates:.*test)"
+		"req-coverage:(make[[:space:]]+req-coverage|common-gates:.*req-coverage)"
+		"tier-tripwire:(make[[:space:]]+tier-tripwire|common-gates:.*tier-tripwire)"
+		"secret-scan:(gitleaks)"
+	)
+	for entry in "${CI_GATES[@]}"; do
+		gate="${entry%%:*}"; gate_re="${entry#*:}"
+		if ! grep -qE "$gate_re" "$CI_YML"; then
+			report ".github/workflows/ci.yml で必須ゲート '${gate}' が実行されていません（CI と pre-push の二重化が崩れます）"
 		fi
 	done
 fi
@@ -358,7 +387,7 @@ done
 # 先頭のドットを落としてあるのは、`.claude/skills/` というパスが作業ディレクトリ配下にあると
 # Claude Code がそこをスコープ付きスキルとしてオンデマンドに読み込むため（実測）。
 # 配布前の雛形が基盤セッションのスキル一覧に混ざるのを構造的に防ぐ（2026-07-26）。
-# guard-shim.sh は新方式固有で _base に対応物が無いため対象外。
+# guard-shim.sh は 2026-08-04 に廃止した（ADR-012 決定3）ため、除外指定も撤去した。
 #
 # NEW_FORM: 参照方式へ**意図的に書き換えた**雛形。_base 側は旧方式のまま（new-service.sh が
 # まだ _base を読むため）で、両者が一致しないのが正しい状態。追加時は理由を1行残すこと。
@@ -376,7 +405,7 @@ while IFS= read -r rel; do
 	fi
 # README.md（このディレクトリ自身の説明＝所在の正本）は配布物ではないので対を要求しない。
 # 配布される雛形は README.md.template のほうで、そちらは従来どおり一致を強制する。
-done < <(cd "$ROOT/service-templates" 2>/dev/null && find . -type f ! -name 'guard-shim.sh' ! -name 'README.md' | sed 's|^\./||' | sort)
+done < <(cd "$ROOT/service-templates" 2>/dev/null && find . -type f ! -name 'README.md' | sed 's|^\./||' | sort)
 # マーカーの実在（全解決の起点。消えると Make も Docker も番人フックも解決不能になる）
 [ -f "$ROOT/.ai-dev-foundation-root" ] || report "マーカー .ai-dev-foundation-root がありません（参照方式の全解決が失敗します）"
 
@@ -485,6 +514,92 @@ for cf in "$ROOT"/profiles/*/files/.devcontainer/compose.yaml; do
 			|| report "隔離境界の退化: $rel に cap_add の $cap がありません（ファイアウォールが起動できません）"
 	done
 done
+# 共通 .claude のユーザースコープ・マウント（ADR-012 フェーズ2で唯一の配布経路になった）。
+# 生成プロジェクトは自前のフック定義もガード本体も持たず、**このマウント経由で共通側の
+# settings.json（絶対パスのフック）と guard-dangerous.sh を受け取る**。ここが消えると、
+# フックもルールも無いまま無警告で起動する——設定層では閉じられない穴なので第1層で検査する。
+# compose 方式（product-web）は devcontainer.json の mounts が効かないため compose.yaml 側を見る。
+for dj in "$ROOT/profiles/_base/.devcontainer/devcontainer.json" \
+          "$ROOT/service-templates/.devcontainer/devcontainer.json" \
+          "$ROOT"/profiles/*/files/.devcontainer/devcontainer.json; do
+	[ -f "$dj" ] || continue
+	rel="${dj#"$ROOT"/}"
+	mount_src="$dj"
+	# compose 方式なら同じディレクトリの compose.yaml が実際のマウント定義を持つ
+	if grep -q '"dockerComposeFile"' "$dj" 2>/dev/null; then
+		cf="$(dirname "$dj")/compose.yaml"
+		[ -f "$cf" ] || { report "隔離境界の退化: $rel は compose 方式ですが compose.yaml がありません"; continue; }
+		mount_src="$cf"
+	fi
+	grep -q '/home/node/\.claude' "$mount_src" \
+		|| report "隔離境界の退化: ${mount_src#"$ROOT"/} が共通 .claude を /home/node/.claude へマウントしていません（フックもルールも配られなくなります。ADR-012）"
+done
+
+echo "[audit] (14) 二重化の突合（第2層 permissions.deny ↔ 第3層 PreToolUse フック）..."
+# ADR-012 決定4: deny で表現できる判定は deny へ**追加**し、フックにも残す（二重化）。
+# 冗長化の根拠は「片方が漏れるから」ではなく、**2つの層が独立に失敗する**こと——
+# deny は例外を書けずに失敗し、フックは見つからずに失敗する。原因が共通していないため、
+# simplicity-in-security（同一理由で壊れる重複は避ける）の例外にあたる。
+#
+# 逆に言えば、**片側だけが消えた瞬間に二重化は成立しなくなる**。しかも消えても何も起きない
+# （テストは緑、コンテナは動く）。人手のレビューでは検出できないので機械で見る。
+#
+# 新しい正本ファイルは作らない。作ると「4箇所目の重複」になる（検査(7)が共通所有ロックで
+# 採ったのと同じ判断）。フック側はマーカー、deny 側は settings.json から抜き出して突合する。
+DUAL_LAYER=(
+	# 判定ID:必須の deny ルール（フック側は `# @dual-layer: <ID>` のマーカーで対応づける）
+	"A2:Bash(git push:*)"              # force push（push 全体を deny しているため --force も覆える）
+	"A3:Bash(git reset *--hard*)"      # 履歴破棄。フラグ位置に依存しない形
+	"A4:Bash(git clean -f*)"           # 作業ツリー破棄。-n/--dry-run は通す（例外はフック側が持つ）
+	"A6:Bash(git checkout -- *)"       # パス指定による変更破棄
+)
+# 「1件でもあれば緑」では大半が消えても素通りするため、これが消えたら意味を失うものを個別に要求する
+# （検査(7) の LOCK_CORE と同型。2026-08-04 追加）。追加時は理由を1行残すこと。
+DENY_CORE=(
+	"Bash(rm -rf:*)"          # 再帰強制削除の代表形
+	"Bash(sudo rm:*)"         # sudo 経由の削除
+	"Read(**/.env)"           # 秘密ファイルのツール経路（bash 経路はフックが担う）
+	"Read(**/.ssh/**)"        # 秘密鍵
+	"Read(**/.aws/**)"        # クラウド認証情報
+)
+GUARD_HOOK="$ROOT/.claude/scripts/guard-dangerous.sh"
+if command -v jq >/dev/null 2>&1 && [ -f "$GUARD_HOOK" ]; then
+	dual_settings=("$ROOT/.claude/settings.json" "$ROOT/profiles/_base/.claude/settings.json")
+	for pset in "$ROOT"/profiles/*/files/.claude/settings.json; do
+		[ -f "$pset" ] && dual_settings+=("$pset")
+	done
+	deny_has() { # <settings.json> <ルール文字列>
+		jq -e --arg r "$2" '.permissions.deny // [] | index($r)' "$1" >/dev/null 2>&1
+	}
+	for entry in "${DUAL_LAYER[@]}"; do
+		id="${entry%%:*}"; rule="${entry#*:}"
+		# ① 第3層: フックに判定が残っていること
+		grep -qE "^[[:space:]]*#[[:space:]]*@dual-layer:[[:space:]]*${id}([^0-9A-Za-z]|$)" "$GUARD_HOOK" \
+			|| report "二重化の退化: フック $( basename "$GUARD_HOOK" ) に判定 $id のマーカーがありません（第3層から判定が消えた可能性。ADR-012 決定4）"
+		# ② 第2層: 4本すべての deny に対応ルールがあること
+		for sf in "${dual_settings[@]}"; do
+			deny_has "$sf" "$rule" \
+				|| report "二重化の退化: ${sf#"$ROOT"/} の deny に判定 $id の '$rule' がありません（第2層から判定が消えたか、4本の同期漏れ）"
+		done
+	done
+	# ③ 逆方向: フックにマーカーがあるのに対応表に無い（実装だけ増えて突合が空回りするのを防ぐ）
+	while IFS= read -r id; do
+		[ -n "$id" ] || continue
+		found=0
+		for entry in "${DUAL_LAYER[@]}"; do [ "${entry%%:*}" = "$id" ] && found=1; done
+		[ "$found" -eq 1 ] \
+			|| report "二重化の突合漏れ: フックに @dual-layer: $id があるのに audit-consistency.sh の DUAL_LAYER に登録がありません"
+	done < <(sed -n 's/^[[:space:]]*#[[:space:]]*@dual-layer:[[:space:]]*\([0-9A-Za-z]*\).*/\1/p' "$GUARD_HOOK" | sort -u)
+	# ④ deny のコアが4本すべてに実在すること
+	for core in "${DENY_CORE[@]}"; do
+		for sf in "${dual_settings[@]}"; do
+			deny_has "$sf" "$core" \
+				|| report "deny コアの退化: ${sf#"$ROOT"/} の deny に '$core' がありません"
+		done
+	done
+elif [ ! -f "$GUARD_HOOK" ]; then
+	report "$GUARD_HOOK がありません（第3層の実体が消えています。ADR-012）"
+fi
 
 echo ""
 if [ "$fail" -ne 0 ]; then

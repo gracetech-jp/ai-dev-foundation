@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -14,10 +13,16 @@
       "Bash(git push:*)",
       "Bash(rm -rf:*)",
       "Bash(sudo rm:*)",
-      "Bash(git reset --hard:*)",
+      "Bash(git reset *--hard*)",
       "Bash(git checkout -- *)",
       "Bash(git clean -f*)",
       "Bash(git branch -D:*)",
+      "Bash(git clean *--force*)",
+      "Bash(git checkout .)",
+      "Bash(rm *-rf*)",
+      "Bash(rm *-fr*)",
+      "Bash(rm *-Rf*)",
+      "Bash(rm *-fR*)",
       "Read(.env)",
       "Read(.env.local)",
       "Read(.env.*.local)",
@@ -65,7 +70,8 @@
       "Bash(composer require:*)",
       "Bash(gh workflow run:*)",
       "mcp__*"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "SessionStart": [
@@ -91,30 +97,9 @@
           }
         ]
       }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -n \"$NTFY_TOPIC\" ]; then curl -s -H 'Priority: high' -H 'Title: Claude Code' -d '承認待ちです' \"https://ntfy.sh/$NTFY_TOPIC\" > /dev/null; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -n \"$NTFY_TOPIC\" ]; then curl -s -H 'Title: Claude Code' -d 'タスク完了しました' \"https://ntfy.sh/$NTFY_TOPIC\" > /dev/null; fi",
-            "timeout": 10
-          }
-        ]
-      }
     ]
   },
   "theme": "dark",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "skipDangerousModePermissionPrompt": true
 }

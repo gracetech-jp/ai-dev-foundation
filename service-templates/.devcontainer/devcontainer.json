@@ -25,11 +25,6 @@
     // 共通の .claude をユーザースコープへ（共通 deny・フック・agents・skills の配布経路）
     "source=${localWorkspaceFolder}/../../.claude,target=/home/node/.claude,type=bind,consistency=delegated",
 
-    // 同じ .claude を共通基盤ルート配下にも readonly で貼る。
-    // 番人シム（guard-shim.sh）はマーカーの隣の .claude/scripts/guard-dangerous.sh へ委譲する。
-    // ここが無いとマーカーだけ見つかって委譲先が読めず、シムが exit 2 で全 Bash をブロックする。
-    "source=${localWorkspaceFolder}/../../.claude,target=/workspaces/foundation/.claude,type=bind,readonly",
-
     // 共通基盤の参照部分。いずれも readonly（プロジェクトから共通を書き換えさせない）
     "source=${localWorkspaceFolder}/../../.ai-dev-foundation-root,target=/workspaces/foundation/.ai-dev-foundation-root,type=bind,readonly",
     "source=${localWorkspaceFolder}/../../CLAUDE.md,target=/workspaces/foundation/CLAUDE.md,type=bind,readonly",

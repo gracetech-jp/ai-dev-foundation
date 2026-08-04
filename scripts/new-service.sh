@@ -96,13 +96,16 @@ sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 
 # Claude設定をコピー
 cp "$BASE/.claude/settings.json" "${TARGET}/.claude/settings.json"
-# Claude skills・サブエージェント・SessionStartルール注入スクリプト・危険操作ガードフックを配布
-mkdir -p "${TARGET}/.claude/scripts" "${TARGET}/.claude/skills" "${TARGET}/.claude/agents"
-cp "$BASE/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/scripts/"
-cp "$BASE/.claude/scripts/guard-dangerous.sh" "${TARGET}/.claude/scripts/"
+# Claude skills・サブエージェントを配布。
+# **フック本体（guard-dangerous.sh / session-start-rules.sh）は配らない**（2026-08-04・ADR-012 フェーズ2）。
+# 配ると各プロジェクトに複製が生まれ、フック定義も `$CLAUDE_PROJECT_DIR` 参照になる。この参照は
+# **起動ディレクトリ**を指すため、サブディレクトリから claude を起動するとスクリプトが見つからず
+# 無警告で素通しする（実測）。devcontainer が共通の .claude を /home/node/.claude（ユーザースコープ）へ
+# マウントしており、そこの絶対パス定義が起動位置に関係なく効くので、フックはそちら1本に集約する。
+# マウントの実在は audit-consistency.sh 検査(13)が強制する。
+mkdir -p "${TARGET}/.claude/skills" "${TARGET}/.claude/agents"
 cp -a "$BASE/.claude/skills/." "${TARGET}/.claude/skills/"
 cp -a "$BASE/.claude/agents/." "${TARGET}/.claude/agents/"
-chmod +x "${TARGET}/.claude/scripts/session-start-rules.sh" "${TARGET}/.claude/scripts/guard-dangerous.sh"
 
 # 共通ルール（CLAUDE.md・docs/rules/）は**配布しない**。実体は共通リポにのみ置き、参照する
 # （2026-07-30 順輸入廃止・ADR-010）:
@@ -128,6 +131,8 @@ cp "$BASE/docs/requirements/"*.md "${TARGET}/docs/requirements/"
 #   - CI          … .github/actions/ の composite action を uses: で参照する
 cp "$BASE/Makefile" "${TARGET}/Makefile"
 cp "$BASE/scripts/audit-consistency.sh" "${TARGET}/scripts/"
+# ガードレールの実測チェックリスト（第2層 deny が実際に発火するかは機械検証できないため人間が叩く。ADR-012）
+cp "$BASE/scripts/verify-guardrails.md" "${TARGET}/scripts/"
 cp "$BASE/.coverage-floor" "${TARGET}/.coverage-floor"  # フロア初期値(サービスがラチェット)
 cp "$BASE/.req-coverage-baseline" "${TARGET}/.req-coverage-baseline"  # 未カバー要件の移行猶予(空)
 cp "$BASE/.tier-tripwire-allow" "${TARGET}/.tier-tripwire-allow"      # トリップワイヤ例外allowlist(空)

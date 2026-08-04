@@ -44,12 +44,16 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 
 # ---- 赤 ----
 
-@test "赤: profiles/_base 側の guard-dangerous.sh だけ改変すると不一致で fail" {
+@test "赤: 配布側にフック複製が再発すると fail する" {
+	# 2026-08-04・ADR-012 フェーズ2: フック本体はユーザースコープ1本に集約した。
+	# 旧ケース（root ↔ _base の複製が不一致なら赤）は、複製そのものを廃止したため
+	# 「複製が再び生えたら赤」へ差し替えた。生えると $CLAUDE_PROJECT_DIR 依存の構成へ逆戻りする。
 	make_sandbox
-	echo "# drift" >> "$SB/profiles/_base/.claude/scripts/guard-dangerous.sh"
+	mkdir -p "$SB/profiles/_base/.claude/scripts"
+	cp "$SB/.claude/scripts/guard-dangerous.sh" "$SB/profiles/_base/.claude/scripts/"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"配布複製が不一致"*"guard-dangerous.sh"* ]]
+	[[ "$output" == *"フック複製が再発しています"* ]]
 }
 
 @test "赤: root 側のスキルファイルだけ削除すると片側欠落で fail" {
@@ -148,12 +152,46 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[[ "$output" == *".tier-tripwire-none があります"* ]]
 }
 
-@test "赤: CI から tier-tripwire ジョブが消えると退化検出で fail" {
+@test "赤: CI から tier-tripwire の実行が消えると退化検出で fail" {
 	make_sandbox
-	sed -i '/^  tier-tripwire:$/,+7d' "$SB/.github/workflows/ci.yml"
+	# ジョブ名ではなく**ゲートの実行**を見る（2026-08-04・ADR-011）。
+	# ジョブ名を残したまま中身だけ抜いても検出できることを固定する。
+	sed -i 's|^      - run: make tier-tripwire$|      - run: echo skip|' "$SB/.github/workflows/ci.yml"
 	run audit
 	[ "$status" -eq 1 ]
-	[[ "$output" == *"必須ジョブ 'tier-tripwire' がありません"* ]]
+	[[ "$output" == *"必須ゲート 'tier-tripwire' が実行されていません"* ]]
+}
+
+@test "赤: CI から secret-scan（gitleaks）が消えると退化検出で fail" {
+	make_sandbox
+	grep -v 'gitleaks' "$SB/.github/workflows/ci.yml" > "$SB/ci.tmp"
+	mv "$SB/ci.tmp" "$SB/.github/workflows/ci.yml"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"必須ゲート 'secret-scan' が実行されていません"* ]]
+}
+
+@test "緑: reusable workflow 呼び出し形でも必須ゲートを満たしていれば通る" {
+	make_sandbox
+	# 将来サービス側の CI がこの形になっても検出力が落ちないことを固定する
+	# （基盤自身は reusable を呼ばない方針だが、検査は両形を受け付ける）。
+	cat > "$SB/.github/workflows/ci.yml" <<-'YAML'
+		name: CI
+		on: [push, pull_request]
+		jobs:
+		  ci:
+		    uses: gracetech-jp/ai-dev-foundation/.github/workflows/service-ci.yml@v2
+		    with:
+		      project-name: dummy
+		      common-gates: "audit-all req-coverage tier-tripwire"
+		      stack-gates: "lint test coverage audit-deps"
+		  secret-scan:
+		    runs-on: ubuntu-latest
+		    steps:
+		      - run: docker run --rm ghcr.io/gitleaks/gitleaks:v8.18.4 detect
+	YAML
+	run audit
+	[ "$status" -eq 0 ]
 }
 
 # ---- 赤: 検査層(10) 参照方式への移行中の複製同期（2026-07-26 フェーズ0） ----
@@ -390,4 +428,75 @@ add_default_mode() {
 	EOF
 	run audit
 	[ "$status" -eq 0 ]
+}
+
+# ---- 赤/緑: 検査層(14) 二重化の突合（2026-08-04・ADR-012 決定4） ----
+# 二重化は「片側が消えても何も起きない」形で壊れる（テストは緑のまま、コンテナも動く）。
+# 検査そのものが空回りしていないことを、両側の欠落・突合漏れの3方向で固定する。
+
+# サンドボックスの settings.json から deny を1件落とす補助
+drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
+	jq --arg r "$2" '.permissions.deny -= [$r]' "$SB/$1" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/$1"
+}
+
+@test "赤: 第3層のマーカーが消えると二重化の退化として fail する" {
+	make_sandbox
+	# フックから A3 の判定が消えた状況を、マーカーを落として再現する
+	grep -v '@dual-layer: A3' "$SB/.claude/scripts/guard-dangerous.sh" > "$SB/g.sh"
+	mv "$SB/g.sh" "$SB/.claude/scripts/guard-dangerous.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"二重化の退化"*"A3"* ]]
+}
+
+@test "赤: 第2層の deny が1本から消えると同期漏れとして fail する" {
+	make_sandbox
+	drop_deny_from "profiles/product-web/files/.claude/settings.json" "Bash(git checkout -- *)"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"二重化の退化"*"A6"* ]]
+}
+
+@test "赤: フックにマーカーがあるのに対応表に無ければ突合漏れとして fail する" {
+	make_sandbox
+	printf '# @dual-layer: Z9\n' >> "$SB/.claude/scripts/guard-dangerous.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"二重化の突合漏れ"*"Z9"* ]]
+}
+
+@test "赤: deny コアが1本から消えると fail する" {
+	make_sandbox
+	drop_deny_from ".claude/settings.json" "Read(**/.ssh/**)"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"deny コアの退化"* ]]
+}
+
+@test "赤: 配布 devcontainer から共通 .claude のマウントが消えると fail する" {
+	make_sandbox
+	# ユーザースコープへのマウントが唯一の配布経路（ADR-012 フェーズ2）。消えると無警告で丸ごと無効になる
+	grep -v '/home/node/.claude' "$SB/profiles/_base/.devcontainer/devcontainer.json" > "$SB/d.json"
+	mv "$SB/d.json" "$SB/profiles/_base/.devcontainer/devcontainer.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"/home/node/.claude へマウントしていません"* ]]
+}
+
+@test "赤: compose 方式のプロファイルでマウントが消えても fail する" {
+	make_sandbox
+	grep -v '/home/node/.claude' "$SB/profiles/product-web/files/.devcontainer/compose.yaml" > "$SB/c.yaml"
+	mv "$SB/c.yaml" "$SB/profiles/product-web/files/.devcontainer/compose.yaml"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"/home/node/.claude へマウントしていません"* ]]
+}
+
+@test "赤: フック本体が消えると第3層の実体喪失として fail する" {
+	make_sandbox
+	rm "$SB/.claude/scripts/guard-dangerous.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"第3層の実体が消えています"* ]]
 }

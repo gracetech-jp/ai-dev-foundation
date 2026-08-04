@@ -1,0 +1,203 @@
+name: service-ci
+
+# サービスリポジトリ共通の CI（ADR-011 の三層構成の最上層）。
+# 各プロジェクトの .github/workflows/ci.yml はこれを uses: で呼ぶだけになる。
+#
+# 【側置きチェックアウト】
+# 共通基盤を GITHUB_WORKSPACE 直下へ、プロジェクトを projects/<name> へ置き、
+# **ローカル（devcontainer）と同じ位置関係**を CI 上に再現する。これにより
+#   - プロジェクト Makefile のマーカー上方探索（.ai-dev-foundation-root）が成立し、
+#     COMMON_ROOT の fail-closed ガードが発火しなくなる
+#   - gates.mk が参照する common/scripts/ の**実体**が同じワークスペースに入る
+# 配置が崩れると make が止まることは tests/side-by-side-layout.bats が固定している。
+#
+# 【devcontainer をビルドしない】
+# 毎 push のイメージビルドが重く、2026-07-23 に8ジョブ→3ジョブへ統合した理由がそのまま残る。
+# 加えて各プロジェクトの devcontainer は共通基盤を ${localWorkspaceFolder}/../.. から bind する
+# ローカル開発用設定で、CI の単独 checkout では bind 元が無く起動しない。
+# 環境一致は「CI とローカルが同じ make ターゲットを呼ぶ」ことで担保する（ADR-011 注意事項）。
+#
+# 【services（DB）】
+# jobs.<id>.services は式で組み立てられない（サービスの有無を入力で切り替えられない）。
+# そこで gates（DB無し）と gates-db（postgres 付き）を排他起動し、ステップ本体は
+# 内部 composite action ./.github/actions/service-gates に1つだけ置いて共有する。
+# DB 種別を増やすときはジョブを1つ足すだけで済む（後から作り直しにならない形）。
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: 側置き先のディレクトリ名（projects/<これ> に置く）
+        type: string
+        required: true
+      profile:
+        description: プロファイル名（product-web / product-static）。記録用
+        type: string
+        required: false
+        default: ""
+      runtime:
+        description: 導入するランタイム（none | node | python | both）
+        type: string
+        required: false
+        default: "none"
+      node-version:
+        type: string
+        required: false
+        default: "24"
+      python-version:
+        type: string
+        required: false
+        default: "3.12"
+      package-manager:
+        description: 依存導入に使うもの（pnpm | npm | uv | poetry）。空なら導入しない
+        type: string
+        required: false
+        default: ""
+      db:
+        description: 起動する DB（none | postgres）
+        type: string
+        required: false
+        default: "none"
+      db-image:
+        type: string
+        required: false
+        default: "postgres:16-alpine"
+      common-gates:
+        description: 共通ゲートの make ターゲット（すべて hard）
+        type: string
+        required: false
+        default: "audit-all req-coverage tier-tripwire"
+      stack-gates:
+        description: スタックゲートの make ターゲット（coverage は auto、他は softable）
+        type: string
+        required: false
+        default: "lint test coverage audit-deps"
+      foundation-repository:
+        type: string
+        required: false
+        default: "gracetech-jp/ai-dev-foundation"
+      foundation-ref:
+        description: 共通基盤の ref。空なら呼び出された reusable と同じコミット（job_workflow_sha）
+        type: string
+        required: false
+        default: ""
+      runs-on:
+        type: string
+        required: false
+        default: "ubuntu-latest"
+    secrets:
+      app-id:
+        description: GitHub App の App ID（基盤が private のため checkout に要る）
+        required: false
+      private-key:
+        description: GitHub App の秘密鍵
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    if: inputs.db == 'none'
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      # 共通基盤（private）を読むための短命トークン。App 未設定なら空のまま進み、
+      # public リポジトリならトークン無しで checkout できる（未設定分岐）。
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        if: secrets.app-id != ''
+        with:
+          app-id: ${{ secrets.app-id }}
+          private-key: ${{ secrets.private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.foundation-repository }}
+
+      # 1本目: 共通基盤をワークスペース直下へ。**必ずプロジェクトより先**
+      # （逆順にすると projects/ を含むワークスペースへ展開されて配置が壊れる）。
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.foundation-repository }}
+          ref: ${{ inputs.foundation-ref || github.job_workflow_sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: .
+
+      # 2本目: 呼び出し元プロジェクトを projects/<name> へ。
+      # fetch-depth: 0 は tier-tripwire の差分基準（origin/main）に必須。
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: projects/${{ inputs.project-name }}
+
+      - uses: ./.github/actions/service-runtime
+        with:
+          runtime: ${{ inputs.runtime }}
+          node-version: ${{ inputs.node-version }}
+          python-version: ${{ inputs.python-version }}
+          package-manager: ${{ inputs.package-manager }}
+          project-dir: projects/${{ inputs.project-name }}
+
+      - uses: ./.github/actions/service-gates
+        with:
+          project-dir: projects/${{ inputs.project-name }}
+          common-gates: ${{ inputs.common-gates }}
+          stack-gates: ${{ inputs.stack-gates }}
+
+  # DB が要るプロジェクト用。ステップ本体は gates と同一（composite action を共有）。
+  gates-db:
+    if: inputs.db == 'postgres'
+    runs-on: ${{ inputs.runs-on }}
+    services:
+      postgres:
+        image: ${{ inputs.db-image }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ci_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        if: secrets.app-id != ''
+        with:
+          app-id: ${{ secrets.app-id }}
+          private-key: ${{ secrets.private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.foundation-repository }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.foundation-repository }}
+          ref: ${{ inputs.foundation-ref || github.job_workflow_sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: .
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: projects/${{ inputs.project-name }}
+
+      - uses: ./.github/actions/service-runtime
+        with:
+          runtime: ${{ inputs.runtime }}
+          node-version: ${{ inputs.node-version }}
+          python-version: ${{ inputs.python-version }}
+          package-manager: ${{ inputs.package-manager }}
+          project-dir: projects/${{ inputs.project-name }}
+
+      - uses: ./.github/actions/service-gates
+        with:
+          project-dir: projects/${{ inputs.project-name }}
+          common-gates: ${{ inputs.common-gates }}
+          stack-gates: ${{ inputs.stack-gates }}
+
+  # 秘密のコミット防止。共通基盤にも App トークンにも依存しない（gitleaks コンテナで完結）。
+  secret-scan:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (working tree)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.18.4 detect --source=/repo --no-git --redact --no-banner

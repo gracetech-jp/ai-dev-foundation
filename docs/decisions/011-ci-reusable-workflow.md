@@ -60,13 +60,35 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
 - 共有ワークフローのリポジトリ自体で CI を走らせ、全 composite action が意図通り動くことを検証する。既存の bats 235 ケースに reusable workflow の検証を追加する
 - 組織名 `gracetech-jp` のハードコードは composite action / reusable workflow の仕様上回避不可。プロジェクト固有情報の混入とはみなさない
 - devcontainer + make 方式は破棄しない。reusable workflow の中で devcontainer を起動して make を呼ぶことは可能。CI とローカルの一致を取るかは別途判断する
+- **基盤リポジトリ自身は reusable workflow を呼ばない**（2026-08-04 決定）。「CI を統一する」と決めた ADR で
+  基盤だけが別方式になるため、理由を残す。reusable workflow の中身は
+  **①共通基盤とプロジェクトの側置きチェックアウト ②プロジェクト側のランタイム導入 ③`projects/<name>` での make 実行**
+  であり、基盤にはこの3つがいずれも当てはまらない——**基盤は側置きの「共通側」そのもの**で、
+  自分を自分の配下へ置くことはできず、言語ランタイムも持たない。
+  無理に通すと `github.job_workflow_sha` が自分自身を指す自己参照になり、ref 解決だけが複雑化する。
+  **統一の対象は「サービスリポジトリの CI」であり、基盤の CI（配布物の dogfood）は別種のもの**である。
+  ただし共有ワークフローが壊れていないことの検証は必要なので、そこは
+  `common/scripts/run-gates.sh` の bats と、GitHub 上での selftest 実行で担保する
+- **CI では devcontainer をビルドしない**（2026-08-04 決定）。毎 push のイメージビルドが重く、
+  2026-07-23 に8ジョブ→3ジョブへ統合した理由がそのまま残る。加えて既存2プロジェクトの
+  devcontainer は共通基盤を `${localWorkspaceFolder}/../..` から bind するローカル開発用設定で、
+  **CI の単独 checkout では bind 元が無く起動しない**（静的サイト側が実際にこれで bare 実行へ移行済み）。
+  環境一致は「CI とローカルが**同じ make ターゲット**を呼ぶ」ことで担保する
 
 ## 結果
 
 - `service-templates/`（23ファイル）を削除する
 - `audit-consistency.sh` 検査(10)の後半（`service-templates/` ↔ `profiles/_base/` の diff 強制）を削除する
 - `.github/workflows/service-ci.yml` を新設する
-- 既存2プロジェクト（grace-tech-hp / sumai-desk）の CI を差し替える
+- 既存2プロジェクトの CI を差し替える
+- **バージョンは `v2` を新設し、`v1` は残す**（2026-08-04 決定）。タグを動かすと移行途中のプロジェクトが
+  意図しないタイミングで切り替わり、段階的移行と両立しない。旧版は非推奨として残す（注意事項1点目に従う）
+- **差し替えには前提条件がある**（2026-08-04）:
+  - 静的サイト側 … **先に Makefile へスタックゲートを実装し、TODO 契約の `exit 3` を消す**。
+    未実装のまま `make lint` / `make test` 経由へ切り替えると、CI が TODO と判定して soft 化し、
+    **今まで hard だったゲートが弱体化する**
+  - 動的アプリ側 … **devcontainer の compose 化の完了を待つ**。Makefile の docker 呼び出しが全面的に
+    書き換わるため、CI の移行を先行させると二重の変更が衝突する。それまで現行 CI を維持する
 - `profiles/_base/.github/workflows/ci.yml` を reusable workflow 呼び出しに置き換える
 - ADR-003 / ADR-005 に続き、CI 方式に関する過去の分岐を解消する
 

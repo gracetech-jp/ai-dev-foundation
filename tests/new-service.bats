@@ -47,7 +47,7 @@ make_sandbox() {
 	for f in PROJECT.md README.md Makefile .editorconfig .env.example .gitignore \
 		.coverage-floor .req-coverage-baseline .tier-tripwire-allow \
 		.devcontainer/Dockerfile .devcontainer/devcontainer.json .devcontainer/postCreate.sh \
-		.claude/settings.json .claude/scripts/guard-dangerous.sh .claude/scripts/session-start-rules.sh \
+		.claude/settings.json \
 		.github/workflows/ci.yml \
 		scripts/audit-consistency.sh \
 		docs/requirements/R-000-template.md docs/service-rules/consistency.md docs/decisions/README.md; do
@@ -65,6 +65,13 @@ make_sandbox() {
 	for s in pre-push commit-msg check-coverage.sh check-requirements-coverage.sh check-tier-tripwire.sh; do
 		[ ! -e "$T/scripts/$s" ]
 	done
+	# フックのユーザースコープ集約（2026-08-04・ADR-012 フェーズ2・案A）:
+	# フック本体もフック定義も配らない。配ると $CLAUDE_PROJECT_DIR 依存の定義が各プロジェクトに残り、
+	# サブディレクトリ起動で無警告に素通しする構成へ戻る。実体は devcontainer のマウント経由で効く。
+	[ ! -e "$T/.claude/scripts" ]
+	[ "$(jq -r 'has("hooks")' "$T/.claude/settings.json")" = "false" ]
+	# ただし deny（第2層）は配る。ここが消えるとプロジェクトはルール無しで生まれる
+	[ "$(jq -r '.permissions.deny | index("Bash(git push:*)") != null' "$T/.claude/settings.json")" = "true" ]
 }
 
 @test "緑: product-static の replace/add が反映される" {

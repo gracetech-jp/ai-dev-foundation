@@ -1,9 +1,23 @@
 #!/bin/bash
-# PreToolUse hook: permissions.deny の文字列一致をすり抜ける表記ゆれ（rm -fr・混在フラグ・
-# パス先行の引数順・クォート分割、git push --force 系のフラグ順違い・チェイン実行等）と、
-# bash経由での.env系秘密ファイル読み取りを決定論的に遮断する。
-# permissions.deny（settings.json）はコマンド先頭の文字列一致のみのため、`&&`連結・変数プレフィックス・
-# フラグの順序違いをすり抜ける。ここではコマンド全体を検査し、その穴を塞ぐ。
+# PreToolUse hook（ガードレール第3層）: permissions.deny（第2層）では覆えない判定を受け持つ。
+#
+# 【第2層との分担 — 2026-08-04 訂正】
+# 旧コメントは「permissions.deny はコマンド先頭の文字列一致のみのため、`&&`連結・変数プレフィックス・
+# フラグの順序違いをすり抜ける」と書いていたが、これは**誤り**だった（公式ドキュメントで確認）。
+# 実際の deny は `*` を任意位置で使え、シェル演算子（&& || ; | |& & 改行）を解釈して
+# **各サブコマンドを独立に照合**し、先頭の環境変数代入も跨いで一致する。
+# したがって「連結や順序違いで deny をすり抜ける」ことを前提に判定を足してはいけない。
+#
+# deny が覆えないのは次の2つで、ここが第3層の存在理由である。
+#   1. **例外を要する判定**。deny には否定も例外も書けない（広い deny は狭い allow を常に上書きする）。
+#      `.env` は止めるが `.env.example` は通す／`process.env` は通す／`id_rsa.pub` は通す／
+#      骨格同期の `cp profiles/_base/...` だけ通す——これらは deny の語彙では表現できない。
+#   2. **組み合わせが閉じない表記ゆれ**。`rm -rvf` のように他フラグを挟んだ結合は列挙が終わらない。
+#
+# 【二重化（ADR-012 決定4）】
+# deny で書ける判定（A2/A3/A4/A6）も、ここから削除しない。2つの層は**独立に失敗する**——
+# deny は例外を書けずに失敗し、フックは見つからずに失敗する。失敗原因が共通しないため冗長化が正当化される。
+# 対応関係は `# @dual-layer: <ID>` のマーカーで示し、audit-consistency.sh 検査(14)が両側の実在を強制する。
 # 方針:
 #  - 破壊的コマンド（rm/git系）はセグメント（| ; & && ||・改行の区切り）単位で判定する。
 #    フラグの位置・順序・結合/分離/ロングショート混在に依存せず、誤検知もセグメント内に閉じる。
@@ -51,16 +65,23 @@ while IFS= read -r seg; do
 	fi
 
 	# 2) git push --force 系（-f 単独・--force・--force-with-lease[=ref]）
+	# @dual-layer: A2
 	if printf '%s' "$seg" | grep -qiE 'git[[:space:]]+push[[:space:]](.*[[:space:]])?(--force(-with-lease)?(=[^[:space:]]*)?|-f)([[:space:]]|$)'; then
 		deny "git push --force系コマンドを検知したためブロックしました"
 	fi
 
 	# 3) git reset --hard
+	# @dual-layer: A3
 	if printf '%s' "$seg" | grep -qiE 'git[[:space:]]+reset[[:space:]].*--hard([^[:alnum:]-]|$)'; then
 		deny "git reset --hard を検知したためブロックしました"
 	fi
 
 	# 4) git clean -f 系（-fd/-dfx等の結合フラグ・--force 含む）
+	# ドライラン（-n / --dry-run 単独）は**通す**。git clean は -f が無ければ何も消さず、
+	# 「まず何が消えるか見る」は詰まったときの最初の一手だから。ここを塞ぐと回避策へ逃げる動機を作る
+	# （ADR-012「回復手順のない fail-secure はシャドーIT を生む」）。deny 側は例外を書けないため、
+	# この例外は手続き層であるここが持つ（2026-08-04・ADR-012 フェーズ2）。
+	# @dual-layer: A4
 	if printf '%s' "$seg" | grep -qiE 'git[[:space:]]+clean([^[:alnum:]_]|$)' &&
 	   printf '%s' "$seg" | grep -qiE '(^|[[:space:]])(-[a-z]*f|--force([^[:alnum:]-]|$))'; then
 		deny "git clean -f系コマンドを検知したためブロックしました"
@@ -75,9 +96,18 @@ while IFS= read -r seg; do
 		fi
 	fi
 
-	# 6) git checkout による変更破棄（git checkout -- . / git checkout .）
-	if printf '%s' "$seg" | grep -qiE 'git[[:space:]]+checkout[[:space:]]+(--[[:space:]]+\.([[:space:]]|$)|\.[[:space:]]*$)'; then
-		deny "git checkout による変更破棄を検知したためブロックしました"
+	# 6) git checkout による変更破棄（git checkout -- <パス> / git checkout .）
+	# 2026-08-04 に `-- <パス>` 全体へ拡大（ADR-012 フェーズ2）。旧実装は `-- .` と `.` しか見ておらず、
+	# `git checkout -- src/app.py` を取り逃がしていた。個別ファイルの破棄と `.` の破棄を分ける根拠は無く、
+	# 第2・3層は「不注意による事故を減らす」層である以上、個別ファイルの破棄も対象になる。
+	# なお deny 側は `Bash(git checkout -- *)` で以前から個別ファイルまで覆えていた（層が非対称だった）。
+	# `--track` `--detach` `-b` のようなフラグは、`--` の直後が空白・行末でないため一致しない。
+	# @dual-layer: A6
+	if printf '%s' "$seg" | grep -qiE 'git[[:space:]]+checkout([^[:alnum:]_]|$)'; then
+		if printf '%s' "$seg" | grep -qE '[[:space:]]--([[:space:]]|$)' ||
+		   printf '%s' "$seg" | grep -qiE 'git[[:space:]]+checkout[[:space:]]+\.([[:space:]]|$)'; then
+			deny "git checkout による変更破棄を検知したためブロックしました"
+		fi
 	fi
 done < <(printf '%s\n' "$STRIPPED" | awk '{gsub(/\|\||&&|[|;&]/, "\n"); print}')
 
@@ -206,7 +236,7 @@ if [ ! -d "${CLAUDE_PROJECT_DIR:-$PWD}/profiles/_base" ]; then
 		#    破壊的コマンド検査（このスクリプト上部）が別途遮断する。
 		#    **この緩和は移行期の暫定である。フェーズ5で共通所有ロックごと撤去する前提**
 		#    （参照方式では守る対象がサービス側に無くなり、ロック自体が空洞化するため）。
-		#    旧経緯: rm は 2026-07-25 に追加された（sumai-desk の申し送り。破壊的コマンド検査は
+		#    旧経緯: rm は 2026-07-25 に追加された（あるサービスからの申し送り。破壊的コマンド検査は
 		#    rm -rf 等の再帰強制しか見ないため `rm CLAUDE.md` が素通ししていた）。
 		#    インタプリタ（python/node/perl/ruby/php/deno/bun）も 2026-07-25 に追加（層C）。
 		#    当初は「インタプリタ経由を列挙しない」判断だったが、それは devcontainer にインタプリタが

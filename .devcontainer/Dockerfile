@@ -20,7 +20,8 @@ RUN usermod -l node ubuntu \
     && chmod 0440 /etc/sudoers.d/node-firewall
 
 # ファイアウォールはイメージ内の root 所有コピーを実行する（ワークスペース側は実行対象にしない）。
-# 基盤リポの追加許可（ntfy.sh）はビルド時に焼き込む。実行時にワークスペースから読ませない。
+# 基盤リポの追加許可はビルド時に焼き込む（実行時にワークスペースから読ませない）。
+# 2026-08-04 時点で追加は0件。ファイルは空でも COPY 対象として残す（詳細は当該ファイルのコメント）。
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh
 COPY extra-allowed-domains.txt /usr/local/share/extra-allowed-domains.txt
 RUN chown root:root /usr/local/bin/init-firewall.sh /usr/local/share/extra-allowed-domains.txt \

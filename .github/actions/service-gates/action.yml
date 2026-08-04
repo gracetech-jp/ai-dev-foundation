@@ -1,0 +1,44 @@
+name: service-gates
+description: 側置きチェックアウト済みのワークスペースで、共通ゲートとスタックゲートを make 経由で実行する
+
+# 基盤リポジトリ**内部専用**の composite action（ADR-011 注意事項: 内部参照は ./.github/actions/... の
+# 相対パス構文を使う＝常に同じコミットのコードを参照するため ref 管理が不要）。
+# 外部公開しない。したがってスクリプトの同梱も不要——側置きチェックアウトにより
+# common/scripts/ の実体が同じワークスペースにあるため、$GITHUB_ACTION_PATH から読む必要がない
+# （既存3本の composite action が同梱している理由がここでは成立しない）。
+#
+# services（DB）の有無で呼び出し側のジョブが分かれるため、ステップ本体をここに1つだけ置いて
+# 両ジョブから呼ぶ。YAML の services: ブロックは式で組み立てられないので、
+# 「ジョブは分ける・中身は共有する」がこの制約下での唯一の形になる。
+
+inputs:
+  project-dir:
+    description: プロジェクトのパス（GITHUB_WORKSPACE からの相対。例 projects/svc）
+    required: true
+  common-gates:
+    description: 共通ゲートの make ターゲット（空白区切り。すべて hard）
+    required: false
+    default: "audit-all req-coverage tier-tripwire"
+  stack-gates:
+    description: スタックゲートの make ターゲット（空白区切り。coverage は auto、他は softable）
+    required: false
+    default: "lint test coverage audit-deps"
+
+runs:
+  using: composite
+  steps:
+    - name: ゲート実行（soft/hard 判定は共通スクリプトが持つ）
+      shell: bash
+      run: |
+        set -u
+        specs=()
+        for t in ${{ inputs.common-gates }}; do specs+=("hard:$t"); done
+        for t in ${{ inputs.stack-gates }}; do
+          case "$t" in
+            coverage) specs+=("auto:$t") ;;   # .coverage-floor で soft/hard が自動で切り替わる
+            *)        specs+=("softable:$t") ;;  # 未実装(TODO=exit 3)の間だけ soft
+          esac
+        done
+        [ "${#specs[@]}" -gt 0 ] || { echo "::error::ゲートが1つも指定されていません（fail-closed）"; exit 2; }
+        bash "$GITHUB_WORKSPACE/common/scripts/run-gates.sh" \
+          "$GITHUB_WORKSPACE/${{ inputs.project-dir }}" "${specs[@]}"

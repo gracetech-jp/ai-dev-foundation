@@ -78,6 +78,73 @@ decision_of() {
 	[ "$(decision_of "$output")" = "deny" ]
 }
 
+# ---- A6: git checkout による変更破棄（2026-08-04・ADR-012 フェーズ2で判定を拡大） ----
+# 旧実装は `-- .` と `.` しか見ておらず、個別ファイルの破棄を取り逃がしていた（テストも0件だった）。
+
+@test "A6: git checkout -- . を deny する" {
+	run run_guard "git checkout -- ."
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A6: git checkout .（-- なし）を deny する" {
+	run run_guard "git checkout ."
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A6: チェイン実行（cd && git checkout -- .）も deny する" {
+	run run_guard "cd src && git checkout -- ."
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A6: 個別ファイルの破棄（git checkout -- src/app.py）を deny する" {
+	run run_guard "git checkout -- src/app.py"
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A6: コミット指定つきの破棄（git checkout HEAD~1 -- src/app.py）も deny する" {
+	run run_guard "git checkout HEAD~1 -- src/app.py"
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A6許可: ブランチ切替（git checkout feature/foo）は素通しする" {
+	run run_guard "git checkout feature/foo"
+	[ -z "$(decision_of "$output")" ]
+}
+
+@test "A6許可: ブランチ作成（git checkout -b new-branch）は素通しする" {
+	run run_guard "git checkout -b new-branch"
+	[ -z "$(decision_of "$output")" ]
+}
+
+@test "A6許可: --track / --detach のような二重ダッシュのフラグは素通しする" {
+	run run_guard "git checkout --track origin/feature/foo"
+	[ -z "$(decision_of "$output")" ]
+}
+
+# ---- A4: git clean のドライランは通す（例外の居場所は手続き層・ADR-012） ----
+# deny には例外が書けないため、この例外はフックが持つ。止めると「まず何が消えるか見る」を
+# 塞ぐことになり、回避策へ逃げる動機を作る。
+
+@test "A4許可: git clean -n（ドライラン）は素通しする" {
+	run run_guard "git clean -n"
+	[ -z "$(decision_of "$output")" ]
+}
+
+@test "A4許可: git clean --dry-run -d も素通しする" {
+	run run_guard "git clean --dry-run -d"
+	[ -z "$(decision_of "$output")" ]
+}
+
+@test "A4回帰: git clean -fd は引き続き deny する（ドライラン許可の波及がない）" {
+	run run_guard "git clean -fd"
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
+@test "A4回帰: git clean --force も deny する" {
+	run run_guard "git clean --force"
+	[ "$(decision_of "$output")" = "deny" ]
+}
+
 # ---- 秘密ファイルの bash 経由読み取りは deny ----
 
 @test "cat .env を deny する" {

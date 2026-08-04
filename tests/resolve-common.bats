@@ -1,16 +1,18 @@
 #!/usr/bin/env bats
-# 参照方式の全解決の起点であるマーカー探索（common/scripts/resolve-common.sh）と、
-# その上に載る番人フック（service-templates/claude/scripts/guard-shim.sh）の固定資産テスト。
+# 参照方式の全解決の起点であるマーカー探索（common/scripts/resolve-common.sh）の固定資産テスト。
 #
-# なぜテストで固定するか: この2つが黙って失敗すると「共通ルールが読まれていないのに緑」
-# 「ガードが動いていないのに緑」という、この基盤が繰り返し潰してきた失敗類型がそのまま戻る。
+# なぜテストで固定するか: これが黙って失敗すると「共通ルールが読まれていないのに緑」という、
+# この基盤が繰り返し潰してきた失敗類型がそのまま戻る。
 # 見つからないときに**止まる**ことこそが仕様であり、そこを回帰テストで固定する。
+#
+# 番人フック（guard-shim.sh）の6ケースは 2026-08-04 に削除した（ADR-012 決定3でシムを廃止）。
+# シムが塞いでいた fail-open は、共通 .claude をユーザースコープへマウントし絶対パスのフックを
+# 1本だけ持つ構成（ADR-013 のマウント設計）で構造的に解けている。
 #
 # @req: R-001
 # @adversarial: R-001
 
 RESOLVE="${BATS_TEST_DIRNAME}/../common/scripts/resolve-common.sh"
-SHIM="${BATS_TEST_DIRNAME}/../service-templates/claude/scripts/guard-shim.sh"
 
 setup() {
 	W="$BATS_TEST_TMPDIR/w"
@@ -54,62 +56,4 @@ setup() {
 @test "resolve: 起点ディレクトリが存在しなければ exit 2" {
 	run bash -c 'source "$1"; resolve_common_root "$2"' _ "$RESOLVE" "$W/does-not-exist"
 	[ "$status" -eq 2 ]
-}
-
-# ---- 番人フック ----
-
-@test "shim: マーカーが無ければ exit 2 で Bash をブロックする（fail-open にしない）" {
-	cd "$W/orphan/projects/svc"
-	run bash "$SHIM"
-	[ "$status" -eq 2 ]
-	[[ "$output" == *"ブロック"* ]]
-}
-
-@test "shim: マーカーがあれば共通側のガードへ委譲する" {
-	mkdir -p "$W/foundation/.claude/scripts"
-	printf '#!/usr/bin/env bash\necho DELEGATED_OK\nexit 0\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	chmod +x "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	cd "$W/foundation/projects/svc/deep/nested"
-	run bash "$SHIM"
-	[ "$status" -eq 0 ]
-	[ "$output" = "DELEGATED_OK" ]
-}
-
-@test "shim: マーカーはあるが委譲先が存在しなければ exit 2（fail-open にしない）" {
-	# 実測で見つかった穴。`exec bash <不在パス>` は exit 127 で終わり、PreToolUse は
-	# exit 2 以外をブロックと解釈しないため素通ししていた。
-	cd "$W/foundation/projects/svc"
-	run bash "$SHIM"
-	[ "$status" -eq 2 ]
-	[[ "$output" == *"委譲先のガードが読めない"* ]]
-}
-
-@test "shim: 委譲先が読めない（権限なし）場合も exit 2" {
-	mkdir -p "$W/foundation/.claude/scripts"
-	printf '#!/usr/bin/env bash\nexit 0\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	chmod 000 "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	cd "$W/foundation/projects/svc"
-	run bash "$SHIM"
-	chmod 644 "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	[ "$status" -eq 2 ]
-}
-
-@test "shim: 委譲先の終了コードをそのまま返す（deny の 0 を握りつぶさない）" {
-	mkdir -p "$W/foundation/.claude/scripts"
-	printf '#!/usr/bin/env bash\necho DELEGATED\nexit 0\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	chmod +x "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	cd "$W/foundation/projects/svc"
-	run bash "$SHIM"
-	[ "$status" -eq 0 ]
-	[ "$output" = "DELEGATED" ]
-}
-
-@test "shim: 委譲先に標準入力（フックJSON）が渡る" {
-	mkdir -p "$W/foundation/.claude/scripts"
-	printf '#!/usr/bin/env bash\ncat\n' > "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	chmod +x "$W/foundation/.claude/scripts/guard-dangerous.sh"
-	cd "$W/foundation/projects/svc"
-	run bash -c 'printf "HOOK_JSON_PASSED" | bash "$1"' _ "$SHIM"
-	[ "$status" -eq 0 ]
-	[ "$output" = "HOOK_JSON_PASSED" ]
 }

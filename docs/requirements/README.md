@@ -14,8 +14,9 @@
 ```
 docs/requirements/
 ├── README.md                        # このファイル（要件一覧と運用）
-├── R-001-guardrail-enforcement.md   # 破壊的操作・秘密読取の機械的遮断（Tier S）
-└── R-002-common-owned-lockdown.md   # 共通所有ファイルの編集・複製の封鎖（Tier S）
+├── R-001-guardrail-enforcement.md   # 破壊的操作・秘密読取の事故防止（第2層・第3層。Tier S）
+├── R-002-common-owned-lockdown.md   # 共通所有ファイルの編集・複製の封鎖（Tier S）
+└── R-003-egress-allowlist.md        # 外向き通信の許可宛先の限定（Tier S）
 ```
 
 `.tier-tripwire-none`（機微面なしの明示宣言）は基盤には置かない。基盤の機微面は
@@ -26,5 +27,6 @@ docs/requirements/
 
 | ID | 表題 | Tier | status |
 |---|---|:--:|:--:|
-| R-001 | 破壊的操作・秘密読取の機械的遮断 | S | ratified |
+| R-001 | 破壊的操作・秘密読取の事故防止（第2層・第3層） | S | ratified |
 | R-002 | 共通所有ファイルのサービス側編集封鎖（一方通行配布） | S | ratified |
+| R-003 | 外向き通信の許可宛先を限定し、コンテナ内から拡げられないこと | S | ratified |

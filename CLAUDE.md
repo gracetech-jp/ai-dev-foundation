@@ -22,12 +22,12 @@
 - **本番環境に影響するコマンドは実行前に提示して承認を得る**
 - **既存テストが壊れる変更をしない**
 - **DBマイグレーションは内容を提示してから実行する**
-- **`git push --force`・`git reset --hard`・`git checkout -- .`・`git clean -f`・`git branch -D`は絶対に実行しない**
+- **`git push --force`・`git reset --hard`・`git checkout -- <パス>`・`git clean -f`・`git branch -D`は絶対に実行しない**（`git checkout -- .` に限らず個別ファイルの破棄も対象。2026-08-04 拡大。`git clean -n`／`--dry-run` は破壊しないので対象外）
 - **コミットは「コミットして」と明示された後にのみ実行する**
 - **`git push`はClaude Codeが自ら実行しない。「プッシュして」と言われても、実行すべきコマンドを提示するのみとし、ユーザーがターミナルで手動実行する**
 - **整合性監査を定期的に実施する**（詳細: `docs/rules/consistency.md`）
 
-> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny` でも技術的にブロックされている（プロンプト遵守のみに頼らない二重の防御）。加えて `PreToolUse` フック `.claude/scripts/guard-dangerous.sh` が Bash 実行前にコマンドを検査し、`rm -fr`・`git push -f` のような **deny の文字列一致をすり抜ける表記ゆれ**、および `cat .env`・`node -e "…readFileSync('.env')…"` のような **bash 経由（インタプリタ経由を含む）の秘密ファイル読み取り**を決定論的に遮断する（exit 2）。`.env` 系の Read も `permissions.deny` で拒否。**ただしこれは静的検査であり、難読化（`'.e'+'nv'`）・ファイル実行（`python script.py`）・`npm run` 経由は原理的に塞げない。脅威モデルは「不注意」であって「悪意ある実行者」ではなく、後者を想定するならファイル権限・秘密の非ファイル化・ネットワーク遮断で対処する**（防御ラインの詳細: `docs/rules/security.md` §静的検査の防御ライン）。DBマイグレーション・パッケージ導入・ワークフロー実行(`gh workflow run`)は `permissions.ask` で実行前確認が入る。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
+> 上記の破壊的git操作は `.claude/settings.json` の `permissions.deny`（第2層）でブロックされ、`PreToolUse` フック `.claude/scripts/guard-dangerous.sh`（第3層）でも**重ねて**遮断する。**二重化するのは2つの層が独立に失敗するから**であり（deny は例外を書けずに失敗し、フックは見つからずに失敗する。ADR-012 決定4）、片側だけ消える退化は監査の検査(14)が検出する。フックが受け持つのは deny では覆えない範囲——**例外を要する判定**（`.env` は止めるが `.env.example` は通す、`process.env` は通す、骨格同期の `cp` だけ通す）と、`rm -rvf` のような**組み合わせが閉じない表記ゆれ**、および `cat .env`・`node -e "…readFileSync('.env')…"` のような **bash 経由（インタプリタ経由を含む）の秘密ファイル読み取り**である（exit 2）。**`permissions.deny` は `*` を任意位置で使え、シェル演算子を解釈してサブコマンド単位で照合する**（2026-08-04 訂正。旧記述の「先頭の文字列一致のみ／`&&` 連結をすり抜ける」は誤り）。`.env` 系の Read も `permissions.deny` で拒否。**脅威モデルは「実行時に生成され、レビューも信頼もできない任意のコード」である（2026-08-03・ADR-012 で更新。旧: 「不注意であって悪意ある実行者ではない」）。これに耐えるのはコンテナ隔離（第1層）だけで、第2層・第3層は事故防止であって防御ではない**——静的検査である以上、難読化（`'.e'+'nv'`）・ファイル実行（`python script.py`）・`npm run` 経由は原理的に塞げない（3層の分担と防御ラインの詳細: `docs/rules/security.md` §静的検査の防御ライン、隔離の実装: ADR-013）。DBマイグレーション・パッケージ導入・ワークフロー実行(`gh workflow run`)は `permissions.ask` で実行前確認が入る。コミットは`allow`から意図的に外してあり、ツール呼び出し時に必ず確認プロンプトが出る。
 
 ---
 
