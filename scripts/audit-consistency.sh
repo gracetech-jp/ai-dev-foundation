@@ -20,7 +20,12 @@ report() {
 echo "[audit] (1) ドキュメントのリンク切れ検査..."
 # CLAUDE.md および docs/rules 配下が参照する docs/rules/*.md が実在するか。
 # 'xxx.md' は「詳細: docs/rules/xxx.md」形式の説明用プレースホルダなので除外する。
-refs=$(grep -rhoE 'docs/rules/[a-z0-9-]+\.md' CLAUDE.md docs/ 2>/dev/null | sort -u)
+#
+# docs/decisions/（ADR）は走査対象から外す。ADR は意思決定の記録であり、「これから何を作るか」を
+# 書く場所である。「結果」節に将来新設するファイルのパスが書かれるのは正常な状態で、そこへ実在検査を
+# かけるのは ADR の性質と検査の目的が噛み合っていない。除外しないと ADR を起票するたびにリンク切れが
+# 発生し、赤が常態化して他の赤に気づけなくなる（2026-08-03 の ADR-016・017 配置で実際に発生した）。
+refs=$(grep -rhoE --exclude-dir=decisions 'docs/rules/[a-z0-9-]+\.md' CLAUDE.md docs/ 2>/dev/null | sort -u)
 for ref in $refs; do
 	case "$ref" in
 		docs/rules/xxx.md) continue ;;
@@ -71,6 +76,7 @@ for req in \
 	profiles/_base/.claude/settings.json profiles/_base/.claude/scripts/guard-dangerous.sh \
 	profiles/_base/.claude/scripts/session-start-rules.sh profiles/_base/.claude/skills profiles/_base/.claude/agents \
 	profiles/_base/.devcontainer/Dockerfile profiles/_base/.devcontainer/postCreate.sh profiles/_base/.devcontainer/devcontainer.json \
+	profiles/_base/.devcontainer/init-firewall.sh \
 	profiles/_base/gitignore.template profiles/_base/.env.example \
 	profiles/_base/PROJECT.md.template profiles/_base/README.md.template \
 	profiles/_base/docs/requirements \
@@ -186,10 +192,17 @@ done < <(
 # 共通所有ファイルのロック deny（ADR-009: CLAUDE.md・docs/rules/ 等のサービス側編集禁止）は
 # _base（配布側）にのみ置く。基盤リポ自身は共通所有ファイルの編集元なので root には置かない＝
 # 比較時に _base 側から差し引いてから照合する（この配布分岐は意図的で、ここが差分の正の定義）。
+#
+# 正規化は**配列の値だけ**をソートする。permissions には配列以外のキーも入る
+# （`defaultMode` は文字列。ADR-013 で追加）。無条件に sort を掛けると jq が
+# 「string cannot be sorted」で異常終了し、diff の**両側が空になって「差分なし＝緑」**に
+# なる——検査が無言で機能停止する（2026-08-04 の ADR-013 実装時に実測して判明）。
+# 型を見てから畳むことで、スカラー値のキーが増えても検査が生き続ける。
 if command -v jq >/dev/null 2>&1; then
-	norm_perms='.permissions | with_entries(.value |= sort)'
+	sort_arrays='with_entries(.value |= if type == "array" then sort else . end)'
+	norm_perms=".permissions | $sort_arrays"
 	common_lock_re='^(Write|Edit)\\((CLAUDE\\.md|docs/rules/.*|\\.claude/(settings\\.json|scripts/.*|skills/(extract-requirements|verify-request)/.*|agents/(consistency-auditor|security-reviewer)\\.md)|scripts/(pre-push|commit-msg|check-coverage\\.sh|check-requirements-coverage\\.sh|check-tier-tripwire\\.sh))\\)$'
-	base_minus_lock=".permissions | .deny |= map(select(test(\"$common_lock_re\") | not)) | with_entries(.value |= sort)"
+	base_minus_lock=".permissions | .deny |= map(select(test(\"$common_lock_re\") | not)) | $sort_arrays"
 	if ! diff -q \
 		<(jq -S "$norm_perms" "$ROOT/.claude/settings.json") \
 		<(jq -S "$base_minus_lock" "$ROOT/profiles/_base/.claude/settings.json") >/dev/null 2>&1; then
@@ -319,6 +332,10 @@ MIGRATION_PAIRS=(
 	# 1箇所になった。Makefile・フック・CI はすべて common/ を参照する。
 	# ベースイメージ: 正本は common/docker/。profiles/_base は new-service.sh が読むため残す
 	"common/docker/Dockerfile.base:profiles/_base/.devcontainer/Dockerfile"
+	# ファイアウォール（ADR-013 第1層）: 同上。Dockerfile が COPY するため _base 側にも実体が要る。
+	# 基盤リポ自身の .devcontainer にも複製が要る（docker の COPY はビルドコンテキストの外を読めない）
+	"common/docker/init-firewall.sh:profiles/_base/.devcontainer/init-firewall.sh"
+	"common/docker/init-firewall.sh:.devcontainer/init-firewall.sh"
 	# composite action の同梱スクリプト: 正本は common/scripts/（$GITHUB_ACTION_PATH から読むため同梱が必須）
 	"common/scripts/check-requirements-coverage.sh:.github/actions/req-coverage/check-requirements-coverage.sh"
 	"common/scripts/check-tier-tripwire.sh:.github/actions/tier-tripwire/check-tier-tripwire.sh"
@@ -404,6 +421,70 @@ for d in $README_DIRS; do
 done
 grep -qxF "ai-dev-foundation/" "$ROOT/README.md" 2>/dev/null \
 	|| report "README.md にリポジトリ直下のツリーがありません（'ai-dev-foundation/' の行で始まるツリー）"
+
+echo "[audit] (13) 開発コンテナの隔離境界の退化検出（ADR-013 第1層）..."
+# ADR-012 で「本物の境界はコンテナ隔離だけ」と決めた以上、境界を作る要素が Dockerfile から
+# 落ちることは**防御そのものの消失**にあたる。しかも落ちても何も起きない（ビルドは通り、
+# コンテナは動く）ため、人手のレビューでは検出できない。
+#
+# 特に危ないのが sudo の無制限化。`NOPASSWD:ALL` が復活すると、ファイアウォールを入れていても
+# コンテナ内から `sudo iptables -F` で解除できてしまい、第1層が自己申告に落ちる。
+#
+# プロファイルの Dockerfile は「_base 全文 + 固有層」の約束だが、その一致を機械で見る仕組みが
+# 無かった（2026-08-04 時点。検査(10)の対は common/ ↔ _base のみ）。全文一致は固有層があるため
+# 課せないので、**境界を成す要素の実在**だけを個別に要求する。追加時は理由を1行残すこと。
+FW_MARKERS=(
+	"iptables ipset iproute2 dnsutils"                        # ファイアウォールの実行に要る道具
+	"gpasswd -d node sudo"                                    # sudo グループ経由の昇格を塞ぐ
+	"NOPASSWD: /usr/local/bin/init-firewall.sh"               # sudo はこの1本だけ
+	"COPY init-firewall.sh /usr/local/bin/init-firewall.sh"   # 実行するのはイメージ内の root 所有コピー
+)
+FW_DOCKERFILES="
+common/docker/Dockerfile.base
+profiles/_base/.devcontainer/Dockerfile
+service-templates/.devcontainer/Dockerfile
+.devcontainer/Dockerfile
+"
+for df in $FW_DOCKERFILES "$ROOT"/profiles/*/files/.devcontainer/Dockerfile; do
+	f="$df"; case "$df" in /*) ;; *) f="$ROOT/$df" ;; esac
+	[ -f "$f" ] || continue
+	rel="${f#"$ROOT"/}"
+	for marker in "${FW_MARKERS[@]}"; do
+		grep -qF "$marker" "$f" \
+			|| report "隔離境界の退化: $rel に '$marker' がありません（ADR-013 第1層）"
+	done
+	# コメント行は除外する。Dockerfile 側は「NOPASSWD:ALL を残さない理由」を説明として
+	# 書いており、それを退化と誤検出すると、正しい注記を消す方向へ人を誘導してしまう
+	if grep -vE '^[[:space:]]*#' "$f" | grep -qE 'NOPASSWD:[[:space:]]*ALL'; then
+		report "隔離境界の退化: $rel が sudo を無制限に許可しています（NOPASSWD:ALL。ADR-013 で1コマンドに絞った）"
+	fi
+done
+# compose 方式のプロファイル（product-web）は devcontainer.json の runArgs が効かないため、
+# NET_ADMIN / NET_RAW を compose 側で与える。落ちるとこのプロファイルだけ postStartCommand が
+# 失敗し、waitFor によりコンテナが上がらない——他は動くので気づきにくい。
+# bypassPermissions と MCP の ask はセットでしか成立しない。bypass は「明示的な ask ルール」だけは
+# 素通りしない（公式ドキュメントで確認）ため、`ask` の `mcp__*` が MCP に対する唯一の実行時の歯止めに
+# なる。片方だけ入ると、実行時に繋がった未知の MCP サーバーが無人で自動承認される。
+# 設定ファイルの静的検査では未知サーバーの接続そのものは止められない——止めているのは ask ルールの方で、
+# ここが検査しているのは「その歯止めが外れていないこと」である。
+if command -v jq >/dev/null 2>&1; then
+	for sf in "$ROOT/.claude/settings.json" "$ROOT/profiles/_base/.claude/settings.json" \
+	          "$ROOT"/profiles/*/files/.claude/settings.json; do
+		[ -f "$sf" ] || continue
+		rel="${sf#"$ROOT"/}"
+		[ "$(jq -r '.permissions.defaultMode // ""' "$sf")" = "bypassPermissions" ] || continue
+		jq -e '.permissions.ask // [] | index("mcp__*")' "$sf" >/dev/null 2>&1 \
+			|| report "隔離境界の退化: $rel は bypassPermissions なのに ask に 'mcp__*' がありません（MCP が無人で自動承認されます。ADR-013）"
+	done
+fi
+for cf in "$ROOT"/profiles/*/files/.devcontainer/compose.yaml; do
+	[ -f "$cf" ] || continue
+	rel="${cf#"$ROOT"/}"
+	for cap in NET_ADMIN NET_RAW; do
+		grep -qF "$cap" "$cf" \
+			|| report "隔離境界の退化: $rel に cap_add の $cap がありません（ファイアウォールが起動できません）"
+	done
+done
 
 echo ""
 if [ "$fail" -ne 0 ]; then

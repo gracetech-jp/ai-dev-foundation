@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -14,7 +15,8 @@
       "Bash(npm install:*)",
       "Bash(npm ci:*)",
       "Bash(pnpm add:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "mcp__*"
     ],
     "deny": [
       "Bash(git push:*)",

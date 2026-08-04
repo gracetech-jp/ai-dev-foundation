@@ -1,18 +1,42 @@
 # [profile:product-web] 開発環境 compose（ADR-006 §7.1: PostgreSQL はアプリと別コンテナ）。
 # 本番のアプリ/DB分離構造に開発環境を近づける。DBは**空**で起動する:
 # 初期化SQL（/docker-entrypoint-initdb.d）・スキーマ・マイグレーションは配らない（中身は各サービスが実装する）。
+#
+# マウントは参照方式（ADR-010）＋隔離境界（ADR-013）に揃える。パスはこの compose ファイルの位置
+# （<共通基盤>/projects/SERVICE_NAME/.devcontainer/）からの相対で、`../../..` が共通基盤ルート。
+# _base の devcontainer.json と同じ位置関係をここで再現する（compose 方式では mounts が効かないため）。
 services:
   app:
     build:
-      context: ..
-      dockerfile: .devcontainer/Dockerfile
+      # コンテキストは .devcontainer/。Dockerfile が init-firewall.sh を COPY するため、
+      # プロジェクトルートを指すとスクリプトがコンテキスト外になり COPY が失敗する。
+      context: .
+      dockerfile: Dockerfile
     command: sleep infinity
+    # ファイアウォール（init-firewall.sh）が iptables/ipset を操作するために要る。
+    # devcontainer.json の runArgs は compose 方式では効かないため、ここで与える。
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     volumes:
-      - ..:/workspace:cached
-      - ../.claude:/home/node/.claude:delegated
+      # 自プロジェクトを、共通基盤配下の正しい位置に書き込み可でマウントする
+      - ..:/workspaces/foundation/projects/SERVICE_NAME:cached
+      # 共通の .claude をユーザースコープへ（共通 deny・フック・agents・skills の配布経路）
+      - ../../../.claude:/home/node/.claude:delegated
+      # 同じ .claude を共通基盤ルート配下にも readonly で（番人シムの委譲先。ADR-012 で不要になる）
+      - ../../../.claude:/workspaces/foundation/.claude:ro
+      # 共通基盤の参照部分。いずれも readonly（プロジェクトから共通を書き換えさせない）
+      - ../../../.ai-dev-foundation-root:/workspaces/foundation/.ai-dev-foundation-root:ro
+      - ../../../CLAUDE.md:/workspaces/foundation/CLAUDE.md:ro
+      - ../../../docs:/workspaces/foundation/docs:ro
+      - ../../../common:/workspaces/foundation/common:ro
+      # 兄弟プロジェクト（../../ 配下の他サービス）は絶対にマウントしない。
+      # 貼ると他サービスの秘密ファイル・認証情報がこのコンテナから読めてしまう。
     environment:
       # 開発用の既定接続（compose 内の db サービスへ）。上書きは環境変数 / .env で（.env.example 参照）
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}
+      # 運用テレメトリ（Datadog 2ホスト）は許可リストに入れない。送信自体を止める（ADR-013）
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     depends_on:
       db:
         condition: service_healthy

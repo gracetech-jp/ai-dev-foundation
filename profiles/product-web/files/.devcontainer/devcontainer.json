@@ -1,8 +1,12 @@
 {
+  // [profile:product-web] compose 方式（app + db の2コンテナ）。
+  // マウント・cap_add・環境変数は compose.yaml 側が持つ（compose 方式では mounts / runArgs /
+  // containerEnv が効かないため）。位置関係は _base の devcontainer.json と同じ:
+  // <共通基盤>/projects/SERVICE_NAME をコンテナ内で再現し、共通基盤は readonly で貼る。
   "name": "SERVICE_NAME Dev Container",
   "dockerComposeFile": "compose.yaml",
   "service": "app",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspaces/foundation/projects/SERVICE_NAME",
   "remoteUser": "node",
   "customizations": {
     "vscode": {
@@ -18,5 +22,11 @@
       }
     }
   },
-  "postCreateCommand": "bash .devcontainer/postCreate.sh"
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+
+  // 外向き既定拒否を適用する（ADR-013 第1層）。postCreate ではなく postStart なのは、
+  // iptables の設定がコンテナ再起動で消えるため。waitFor により、遮断が完了するまで
+  // コンテナは準備完了にならない。
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
 }

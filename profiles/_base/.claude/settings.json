@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -22,7 +23,8 @@
       "Bash(gem install:*)",
       "Bash(bundle add:*)",
       "Bash(composer require:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "mcp__*"
     ],
     "deny": [
       "Bash(git push:*)",

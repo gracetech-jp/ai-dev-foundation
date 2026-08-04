@@ -25,7 +25,7 @@ test:
 lint:
 	@command -v shellcheck >/dev/null 2>&1 || { echo "[lint] ❌ shellcheck が見つかりません（fail-closed。導入: apt-get install shellcheck）"; exit 1; }
 	@echo "[lint] shellcheck を実行中..."
-	@shellcheck scripts/*.sh .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh || exit 1
+	@shellcheck scripts/*.sh .claude/scripts/*.sh profiles/_base/.claude/scripts/*.sh profiles/_base/scripts/*.sh profiles/_base/.devcontainer/postCreate.sh common/scripts/*.sh common/scripts/pre-push common/scripts/commit-msg common/docker/*.sh service-templates/claude/scripts/*.sh service-templates/scripts/*.sh service-templates/.devcontainer/postCreate.sh .github/actions/*/*.sh || exit 1
 	@echo "[lint] ✅ 警告なし"
 
 # カバレッジのフロア検証（ラチェット）。基盤リポはアプリコードが無いためスキップ。

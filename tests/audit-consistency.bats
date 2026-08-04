@@ -245,3 +245,149 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[[ "$output" == *"自ディレクトリのツリーがありません"* ]]
 	[[ "$output" == *"docs/decisions/README.md"* ]]
 }
+
+# ---- 赤/緑: 検査層(1) リンク切れと ADR の除外（2026-08-03 決定） ----
+# 検査(1) は docs/decisions/（ADR）を走査対象から外している。ADR の「結果」節には
+# これから新設するファイルのパスが書かれるため、実在検査をかけると起票のたびに赤になる。
+# ただし除外を入れた結果、実リポには壊れた参照が1つも無い＝**検査(1) を壊してもテストが
+# 緑のまま通る**状態になった。以下の2ケースで「検査が生きていること」と「除外が効いていること」
+# を両側から留める（片側だけだと、検査全体を殺す変更と除外を外す変更のどちらかを見逃す）。
+
+@test "赤: docs/rules が未実在の docs/rules/*.md を参照すると リンク切れ検出で fail" {
+	make_sandbox
+	# 'xxx.md' はプレースホルダとして明示除外されているため、別名を使う。
+	[ ! -f "$SB/docs/rules/not-a-real-rule.md" ]
+	echo '詳細: `docs/rules/not-a-real-rule.md`' >> "$SB/docs/rules/testing.md"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"参照先が存在しない"* ]]
+	[[ "$output" == *"docs/rules/not-a-real-rule.md"* ]]
+}
+
+# ---- 赤/緑: 検査層(13) 隔離境界の退化検出（2026-08-04・ADR-013） ----
+# 境界を成す要素が Dockerfile から落ちても、ビルドは通りコンテナも動く。何も起きないまま
+# 防御だけが消えるため、人手のレビューでは捕まらない。特に sudo の無制限化は、
+# ファイアウォールを入れていても `sudo iptables -F` で解除できる状態に戻す。
+
+@test "赤: Dockerfile の sudo が NOPASSWD:ALL に戻ると隔離境界の退化で fail" {
+	make_sandbox
+	# コメントではなく実行される行として戻す（コメント中の言及は誤検出しない設計）
+	echo 'RUN echo "node ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/node' \
+		>> "$SB/profiles/_base/.devcontainer/Dockerfile"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"sudo を無制限に許可"* ]]
+}
+
+@test "緑: Dockerfile のコメント中の NOPASSWD:ALL は退化扱いしない" {
+	make_sandbox
+	grep -q 'NOPASSWD:ALL' "$SB/profiles/_base/.devcontainer/Dockerfile"
+	run audit
+	[ "$status" -eq 0 ]
+}
+
+@test "赤: bypassPermissions のまま MCP の ask を外すと fail" {
+	make_sandbox
+	# bypass は明示的な ask だけは素通りしないため、mcp__* が MCP に対する唯一の実行時の歯止め
+	jq '.permissions.ask -= ["mcp__*"]' "$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"ask に 'mcp__*' がありません"* ]]
+}
+
+@test "赤: compose から cap_add の NET_ADMIN が消えると fail" {
+	make_sandbox
+	cf="$SB/profiles/product-web/files/.devcontainer/compose.yaml"
+	grep -v 'NET_ADMIN' "$cf" > "$SB/t"
+	mv "$SB/t" "$cf"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"cap_add の NET_ADMIN がありません"* ]]
+}
+
+@test "赤: プロファイル Dockerfile から init-firewall.sh の COPY が消えると fail" {
+	make_sandbox
+	df="$SB/profiles/product-web/files/.devcontainer/Dockerfile"
+	grep -v 'COPY init-firewall.sh /usr/local/bin/init-firewall.sh' "$df" > "$SB/t"
+	mv "$SB/t" "$df"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"隔離境界の退化"* ]]
+	[[ "$output" == *"product-web"* ]]
+}
+
+# ---- 赤: ファイアウォール（ADR-013 第1層）の配布と正本一致 ----
+# init-firewall.sh は「配られていなければ第1層が存在しない」もの。配布行が消えても、正本と複製が
+# 割れても、生成されたプロジェクトは**遮断なしで立ち上がる**。どちらも無言の退化になるため留める。
+
+@test "赤: init-firewall.sh の配布行が消えると配布漏れで fail" {
+	make_sandbox
+	grep -v 'init-firewall.sh' "$SB/scripts/new-service.sh" > "$SB/t.sh"
+	mv "$SB/t.sh" "$SB/scripts/new-service.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"init-firewall.sh を新サービスへ配布していない"* ]]
+}
+
+@test "赤: init-firewall.sh の正本と配布複製が割れると fail" {
+	make_sandbox
+	echo "# drift" >> "$SB/profiles/_base/.devcontainer/init-firewall.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"移行複製が不一致"* ]]
+	[[ "$output" == *"init-firewall.sh"* ]]
+}
+
+# ---- 赤/緑: 検査層(6) permissions 正規化がスカラー値で潰れないこと（2026-08-04・ADR-013） ----
+# 検査(6)は permissions を jq で正規化して比較する。旧実装は全キーに無条件 sort を掛けており、
+# 配列でない値（`defaultMode` は文字列）が1つ入るだけで jq が異常終了し、diff の**両側が空**に
+# なって「差分なし＝緑」と判定された。つまり permissions の同期検査が無言で止まる。
+# 「作動していないゲート」を作らないため、スカラー値がある状態で検出能力が残ることを留める。
+
+# permissions.defaultMode を root / _base / プロファイルの3系統すべてに入れる
+# （検査(7)が「ask 以外はプロファイルと _base で同値」を課すため、片方だけでは別検査が赤になり
+#   検査(6)を素通りさせても気づけないテストになる）
+add_default_mode() {
+	local f
+	for f in "$SB/.claude/settings.json" "$SB/profiles/_base/.claude/settings.json" \
+	         "$SB"/profiles/*/files/.claude/settings.json; do
+		[ -f "$f" ] || continue
+		jq '.permissions.defaultMode = "bypassPermissions"' "$f" > "$SB/t.json"
+		mv "$SB/t.json" "$f"
+	done
+}
+
+@test "緑: permissions に defaultMode（文字列）があっても監査が通る" {
+	make_sandbox
+	add_default_mode
+	run audit
+	[ "$status" -eq 0 ]
+}
+
+@test "赤: defaultMode があっても permissions の同期検査が生きている（型で潰れない）" {
+	make_sandbox
+	add_default_mode
+	# この状態で _base 側の deny を1件落とす。正規化が壊れていると検出できずに緑になる
+	jq '.permissions.deny -= ["Bash(git push:*)"]' "$SB/profiles/_base/.claude/settings.json" > "$SB/t.json"
+	mv "$SB/t.json" "$SB/profiles/_base/.claude/settings.json"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"permissions が root ↔ profiles/_base で不一致"* ]]
+}
+
+@test "緑: ADR が未実在の docs/rules/*.md を参照しても リンク切れ扱いしない" {
+	make_sandbox
+	# 実在の ADR に追記すると、その ADR が消えた時にテストの意味が静かに失われるため、
+	# 「結果」節を持つ ADR を模した専用の入力を置く。
+	[ ! -f "$SB/docs/rules/not-a-real-rule.md" ]
+	cat > "$SB/docs/decisions/099-fixture-for-link-check.md" <<-'EOF'
+		# ADR-099: リンク切れ検査の除外を検証するための入力
+
+		## 結果
+
+		- `docs/rules/not-a-real-rule.md` を新設する
+	EOF
+	run audit
+	[ "$status" -eq 0 ]
+}

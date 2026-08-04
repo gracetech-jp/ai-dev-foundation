@@ -7,8 +7,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # jq: .claude/scripts/guard-dangerous.sh（PreToolUseフック）がフックJSON入力を解析するために必要
 # shellcheck: make lint のゼロ警告ゲートに必要（不在だと lint が fail-closed で失敗する）
+# iptables/ipset/iproute2/dnsutils: init-firewall.sh（ADR-013 第1層）が使う
 RUN apt-get update && apt-get install -y \
     curl git zsh build-essential ca-certificates sudo jq shellcheck \
+    iptables ipset iproute2 dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Node 24（Active LTS・メジャー固定。マイナーはビルド時最新＝セキュリティパッチ追従。ADR-006 フェーズ2承認）
@@ -22,11 +24,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 # ここはブートストラップの10系のみ導入し、正確なバージョン固定は各サービス側で行う。
 RUN npm install -g pnpm@10
 
+# sudo は init-firewall.sh の1本だけに絞る（ADR-013）。sudo グループからも外す。
 RUN usermod -l node ubuntu \
     && usermod -d /home/node -m node \
     && groupmod -n node ubuntu \
-    && echo "node ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/node \
-    && chmod 0440 /etc/sudoers.d/node
+    && gpasswd -d node sudo \
+    && echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall \
+    && chmod 0440 /etc/sudoers.d/node-firewall
+
+# ファイアウォールはイメージ内の root 所有コピーを実行する（ワークスペース側は実行対象にしない）
+COPY init-firewall.sh /usr/local/bin/init-firewall.sh
+RUN chown root:root /usr/local/bin/init-firewall.sh \
+    && chmod 0755 /usr/local/bin/init-firewall.sh
 
 USER node
 WORKDIR /home/node

@@ -88,6 +88,9 @@ mkdir -p "${TARGET}"/{.devcontainer,.claude,.github/workflows,docs/requirements,
 # devcontainer設定をコピー
 cp "$BASE/.devcontainer/Dockerfile" "${TARGET}/.devcontainer/"
 cp "$BASE/.devcontainer/postCreate.sh" "${TARGET}/.devcontainer/"
+# 外向き既定拒否のファイアウォール（ADR-013 第1層）。Dockerfile が COPY でイメージへ焼く。
+cp "$BASE/.devcontainer/init-firewall.sh" "${TARGET}/.devcontainer/"
+chmod +x "${TARGET}/.devcontainer/init-firewall.sh"
 sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
 	"$BASE/.devcontainer/devcontainer.json" > "${TARGET}/.devcontainer/devcontainer.json"
 
