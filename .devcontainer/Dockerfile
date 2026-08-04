@@ -11,6 +11,18 @@ RUN apt-get update && apt-get install -y \
     iptables ipset iproute2 dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
+# gh: CI 結果と Actions の状態をエージェント自身が確認するために使う（ADR-013 の判断変更）。
+# 取得は**ビルド時**なので、実行時の許可リスト（init-firewall.sh）とは無関係に入る。
+# 認証は環境変数 GH_TOKEN（fine-grained PAT・Actions:Read + Contents:Read・対象3リポジトリ）を
+# devcontainer.json の containerEnv からホスト環境変数経由で渡す。イメージにも git にも焼かない。
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # sudo は init-firewall.sh の1本だけに絞る（ADR-013）。sudo グループからも外す。
 RUN usermod -l node ubuntu \
     && usermod -d /home/node -m node \

@@ -41,6 +41,20 @@ BASE_DOMAINS=(
 	"storage.googleapis.com"     # プラグインのメタデータ・旧版インストーラ
 	"raw.githubusercontent.com"  # /release-notes の変更履歴フィード
 	"code.claude.com"            # ドキュメント参照（2026-08-04 実測で観測）
+	# GitHub（2026-08-04 追加・ADR-013 の判断変更）。CI 結果と Actions の状態をエージェント自身が
+	# 確認できるようにするため。ホスト側で gh を叩く運用は「極力人間に手を使わない」前提に反する。
+	# **爆発半径は明確に広がる**（コンテナから git push と API 操作が可能になる）。
+	# 実際に何ができるかを決めるのは、この行ではなく**渡すトークンのスコープ**である。
+	"api.github.com"             # gh の REST/GraphQL（CI 結果・Actions の状態・リポジトリ設定）
+	"github.com"                 # git over HTTPS（fetch / pull / push）・gh の一部導線
+	# 足していないもの（用途が確定していないため。R-003「推測で足さない」）:
+	#   codeload.github.com … アーカイブ取得（gh release download / tarball）
+	#   uploads.github.com  … アップロード（gh release upload）
+	# 必要になったら、失敗したコマンドのエラーを根拠に1件ずつ足す。
+	#
+	# なお objects.githubusercontent.com は**足さなくても到達する**。raw.githubusercontent.com と
+	# 同じ4つの IP（185.199.108-111.133）に解決されるため、ipset では区別できない（2026-08-04 実測）。
+	# これは R-003「対象外」に挙げた「同一 IP への相乗り」がそのまま現れた例である。
 )
 
 # プロジェクト固有の追加分。**イメージ内**にしか置かない（ワークスペースから読むと

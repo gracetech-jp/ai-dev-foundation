@@ -23,8 +23,16 @@
   "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
 
   // 運用テレメトリ（Datadog 2ホスト）は許可リストに入れない。送信自体を止める（ADR-013）
+  //
+  // GH_TOKEN: gh が CI 結果・Actions の状態を読むための fine-grained PAT
+  // （Actions:Read + Contents:Read・対象3リポジトリ・90日）。
+  // **値はホストの環境変数から取る**（${localEnv:...}）。git 管理下のファイルにも、
+  // ワークスペース内のファイルにも、イメージにも置かない——秘密の住所はホスト側のままにする。
+  // 未設定なら空文字が入り、gh が未認証で失敗する（黙って別の資格情報へフォールバックしない）。
+  // ホスト側の設定例: シェルの起動ファイルに `export GH_TOKEN=github_pat_...` を書く
   "containerEnv": {
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
   },
 
   "remoteUser": "node",

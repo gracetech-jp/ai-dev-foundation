@@ -13,6 +13,18 @@ RUN apt-get update && apt-get install -y \
     iptables ipset iproute2 dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
+# gh: CI 結果と Actions の状態をエージェント自身が確認するために使う（ADR-013 の判断変更）。
+# 取得は**ビルド時**なので、実行時の許可リスト（init-firewall.sh）とは無関係に入る。
+# 認証は環境変数 GH_TOKEN（fine-grained PAT・Actions:Read + Contents:Read・対象3リポジトリ）を
+# devcontainer.json の containerEnv からホスト環境変数経由で渡す。イメージにも git にも焼かない。
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Node 24（Active LTS・メジャー固定。マイナーはビルド時最新＝セキュリティパッチ追従。ADR-006 フェーズ2承認）
 # Astro 6 の要件（Node >= 22.12）を充足する。Astro 自体は各サービスの package.json で固定する（土台はNode互換のみ保証）。
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \

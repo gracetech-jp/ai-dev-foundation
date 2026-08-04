@@ -108,8 +108,16 @@ fw() { bash "$SUT" "$@"; }
 	run fw
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"許可: extra.example.net"* ]]
-	# BASE_DOMAINS(9) + 追加1 が status に残る
-	grep -q "domains=10" "$STATUS"
+	# スタンプの件数が「実際に処理した宛先の数」と一致すること。
+	# BASE_DOMAINS の件数を直値で書かない——許可リストは増減するもので、
+	# 直値にすると**宛先を1つ足すたびに無関係なテストが赤になる**（2026-08-04 に実際に起きた）。
+	allowed="$(printf '%s\n' "$output" | grep -c '^\[firewall\] 許可: ')"
+	grep -q "domains=${allowed}" "$STATUS"
+	# 追加分がちょうど1件反映されていること（BASE のみのときとの差で見る）
+	printf '' > "$EXTRA"
+	run fw
+	base_only="$(printf '%s\n' "$output" | grep -c '^\[firewall\] 許可: ')"
+	[ "$allowed" -eq "$((base_only + 1))" ]
 }
 
 # ---- 赤: 遮断を解除しようとする側（adversarial） ----
