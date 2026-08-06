@@ -358,6 +358,69 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 	[[ "$output" == *"product-web"* ]]
 }
 
+# ---- 赤: 私的状態と共通資産の分離（ADR-013・2026-08-06） ----
+# どれが欠けてもコンテナは動くが、認証情報が git 作業ツリーへ戻るか、Rebuild のたびに
+# 消えるかのどちらかになる。動いてしまう以上レビューでは捕まらないので機械で留める。
+
+@test "赤: devcontainer.json から CLAUDE_CONFIG_DIR が消えると fail" {
+	make_sandbox
+	dj="$SB/.devcontainer/devcontainer.json"
+	grep -v 'CLAUDE_CONFIG_DIR' "$dj" > "$SB/t"
+	mv "$SB/t" "$dj"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"CLAUDE_CONFIG_DIR"* ]]
+}
+
+@test "赤: CLAUDE_CONFIG_DIR を共通 .claude へ戻すと fail" {
+	make_sandbox
+	dj="$SB/.devcontainer/devcontainer.json"
+	sed 's|"/home/node/.claude-state"|"/home/node/.claude"|' "$dj" > "$SB/t"
+	mv "$SB/t" "$dj"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"CLAUDE_CONFIG_DIR"* ]]
+}
+
+@test "赤: 私的状態の名前付きボリュームが消えると fail" {
+	make_sandbox
+	dj="$SB/.devcontainer/devcontainer.json"
+	grep -v 'target=/home/node/.claude-state,type=volume' "$dj" > "$SB/t"
+	mv "$SB/t" "$dj"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"名前付きボリューム"* ]]
+}
+
+@test "赤: postStartCommand から setup-claude-config.sh が消えると fail" {
+	make_sandbox
+	dj="$SB/.devcontainer/devcontainer.json"
+	sed 's| && /usr/local/bin/setup-claude-config.sh||' "$dj" > "$SB/t"
+	mv "$SB/t" "$dj"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"setup-claude-config.sh"* ]]
+}
+
+@test "赤: Dockerfile から .claude-state の mkdir が消えると fail" {
+	make_sandbox
+	df="$SB/.devcontainer/Dockerfile"
+	grep -v 'mkdir -p /home/node/.claude-state' "$df" > "$SB/t"
+	mv "$SB/t" "$df"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *".claude-state"* ]]
+}
+
+@test "赤: setup-claude-config.sh が正本と割れると fail" {
+	make_sandbox
+	echo '# drift' >> "$SB/.devcontainer/setup-claude-config.sh"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"移行複製が不一致"* ]]
+	[[ "$output" == *"setup-claude-config.sh"* ]]
+}
+
 # ---- 赤: ファイアウォール（ADR-013 第1層）の配布と正本一致 ----
 # init-firewall.sh は「配られていなければ第1層が存在しない」もの。配布行が消えても、正本と複製が
 # 割れても、生成されたプロジェクトは**遮断なしで立ち上がる**。どちらも無言の退化になるため留める。

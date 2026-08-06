@@ -14,6 +14,9 @@
 set -uo pipefail
 
 STATUS_FILE="/var/log/init-firewall.status"
+# 共通資産（deny・フック・agents・skills）の配布先。ADR-012 フェーズ2で唯一の経路になった。
+# 実体は基盤リポの .claude＝git 作業ツリーなので、認証情報はここへ置かない（ADR-013）。
+COMMON_CLAUDE_DIR="/home/node/.claude"
 BLOCKED_URL="https://example.com"
 ALLOWED_URL="https://api.anthropic.com"
 
@@ -35,7 +38,7 @@ ok()   { echo "  ✅ $1"; pass=$((pass + 1)); }
 ng()   { echo "  ❌ $1"; fail=$((fail + 1)); }
 head2() { echo ""; echo "[$1] $2"; }
 
-head2 1/6 "init-firewall.sh が実際に走ったか"
+head2 1/7 "init-firewall.sh が実際に走ったか"
 if [ ! -f "$STATUS_FILE" ]; then
 	ng "$STATUS_FILE がありません（postStartCommand が走っていない可能性）"
 	echo "     → devcontainer.json の postStartCommand を確認し、コンテナを再起動する"
@@ -50,7 +53,7 @@ else
 	esac
 fi
 
-head2 2/6 "既定ポリシーが DROP になっているか"
+head2 2/7 "既定ポリシーが DROP になっているか"
 # 非 root ではポリシーを読めないため、スクリプトが記録した適用内容で確認する。
 # 実際の振る舞いは 3/5 が受け持つ（記録と実測の両方が揃って初めて信頼できる）。
 if [ -f "$STATUS_FILE" ] && grep -q 'policy=DROP' "$STATUS_FILE"; then
@@ -59,7 +62,7 @@ else
 	ng "DROP を適用した記録がない（1/5 が失敗しているならそちらが原因）"
 fi
 
-head2 3/6 "許可リスト外への通信が実際に遮断されるか"
+head2 3/7 "許可リスト外への通信が実際に遮断されるか"
 if curl --connect-timeout 5 -s -o /dev/null "$BLOCKED_URL" 2>/dev/null; then
 	ng "$BLOCKED_URL へ到達できてしまいました（遮断が効いていません）"
 else
@@ -72,7 +75,7 @@ else
 	echo "     → コンテナを再起動すると名前解決からやり直す"
 fi
 
-head2 4/6 "sudo が init-firewall.sh 以外で使えないこと"
+head2 4/7 "sudo が init-firewall.sh 以外で使えないこと"
 if id -nG | tr ' ' '\n' | grep -qx sudo; then
 	ng "node が sudo グループに属しています（gpasswd -d node sudo が効いていない）"
 else
@@ -91,7 +94,7 @@ else
 	ng "init-firewall.sh を sudo で実行できません（次回起動時に遮断が適用されません）"
 fi
 
-head2 5/6 "GH_TOKEN のスコープが実際に効いているか"
+head2 5/7 "GH_TOKEN のスコープが実際に効いているか"
 # 許可リストへ github.com / api.github.com を入れた時点で、この境界の実効範囲を決めるのは
 # 許可リストではなく**コンテナへ渡すトークンのスコープ**になった（ADR-013 の判断変更）。
 # したがってスコープも実測の対象に含める。
@@ -160,7 +163,62 @@ else
 	esac
 fi
 
-head2 6/6 "品質ゲート（make audit-all / make test）"
+head2 6/7 "認証情報が git 作業ツリーの外に置かれ、Rebuild をまたいで残るか"
+# ADR-013（2026-08-06）。Claude Code は認証情報と .claude.json を config ディレクトリへ書く。
+# 共通 .claude は基盤リポの bind＝git 作業ツリーなので、そこを config ディレクトリにすると
+# 認証情報が作業ツリーに入る。設定ファイルが正しいことは audit の検査(13)が見るので、
+# ここは**実際に分離できているか**を測る。
+if [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
+	ng "CLAUDE_CONFIG_DIR が未設定です（.claude.json が \$HOME 直下に落ち、Rebuild で消えます）"
+	echo "     → devcontainer.json の containerEnv を確認し、Rebuild する"
+elif [ "$CLAUDE_CONFIG_DIR" = "$COMMON_CLAUDE_DIR" ]; then
+	ng "CLAUDE_CONFIG_DIR が共通 .claude と同じです（認証情報が git 作業ツリーに入ります）"
+else
+	ok "config ディレクトリは共通 .claude と別（$CLAUDE_CONFIG_DIR）"
+
+	# overlay 上ではなく独立したマウントであること。ここが「Rebuild をまたいで残る」の実体で、
+	# 今回の不具合（$HOME/.claude.json が overlay 上にあった）とちょうど同じ形を検出する。
+	if [ "$(findmnt -no TARGET --target "$CLAUDE_CONFIG_DIR" 2>/dev/null)" = "$CLAUDE_CONFIG_DIR" ]; then
+		ok "$CLAUDE_CONFIG_DIR は独立したマウント（Rebuild をまたいで残る）"
+	else
+		ng "$CLAUDE_CONFIG_DIR がマウントされていません（コンテナの overlay 上＝Rebuild で消えます）"
+	fi
+
+	# 認証まわりの実体が config ディレクトリ側にあること。
+	for f in .credentials.json .claude.json; do
+		if [ -f "$CLAUDE_CONFIG_DIR/$f" ]; then
+			ok "$f が config ディレクトリ側にある"
+		else
+			ng "$CLAUDE_CONFIG_DIR/$f がありません（$f が別の場所に書かれています）"
+		fi
+	done
+
+	# 逆に、git 作業ツリー側と $HOME 直下には残っていないこと。
+	leftover=""
+	[ -e "$COMMON_CLAUDE_DIR/.credentials.json" ] && leftover="$leftover $COMMON_CLAUDE_DIR/.credentials.json"
+	[ -e "$HOME/.claude.json" ] && leftover="$leftover $HOME/.claude.json"
+	if [ -z "$leftover" ]; then
+		ok "git 作業ツリーと \$HOME 直下に認証情報が残っていない"
+	else
+		ng "認証情報が古い場所に残っています:$leftover"
+		echo "     → 移設済みなら手動で削除する（setup-claude-config.sh は移設元を消さない）"
+	fi
+
+	# 共通資産（ADR-012 の配布経路）が config ディレクトリから見えること。
+	# CLAUDE_CONFIG_DIR を設定すると settings.json の読み取り元もそこへ移るため、
+	# symlink が切れると**共通 deny もフックも読まれないまま**起動する。
+	for name in settings.json skills agents; do
+		if [ ! -L "$CLAUDE_CONFIG_DIR/$name" ]; then
+			ng "$CLAUDE_CONFIG_DIR/$name が symlink ではありません（共通資産が配られていません。ADR-012）"
+		elif [ "$(readlink -f "$CLAUDE_CONFIG_DIR/$name")" = "$(readlink -f "$COMMON_CLAUDE_DIR/$name")" ]; then
+			ok "$name は共通側を指している"
+		else
+			ng "$CLAUDE_CONFIG_DIR/$name の指す先が共通側ではありません（$(readlink "$CLAUDE_CONFIG_DIR/$name")）"
+		fi
+	done
+fi
+
+head2 7/7 "品質ゲート（make audit-all / make test）"
 if make -C /workspace audit-all >/dev/null 2>&1; then
 	ok "make audit-all 緑"
 else

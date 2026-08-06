@@ -203,6 +203,62 @@ GitHub を許可リストへ入れた時点で、**この境界の意味が変�
 | `codeload.github.com` / `uploads.github.com` | **足さない**。用途が確定していない（R-003「推測で足さない」） |
 | `objects.githubusercontent.com` | **足さないが到達する**。`raw.githubusercontent.com` と同じ IP に解決され ipset で区別できない（2026-08-04 実測）。許可リストの粒度がホストではなく IP であることの実例 |
 
+## Claude Code の認証情報の置き場所（2026-08-06）
+
+### 直した不具合
+
+Rebuild のたびにログインし直しになっていた。原因は `.claude.json`（`oauthAccount` と
+`hasCompletedOnboarding` を持つ）が `$HOME` 直下に落ちること。`$HOME` はどのマウントにも
+含まれないため、コンテナの overlay と一緒に毎回消える。認証トークン（`.credentials.json`）は
+マウント済みの `/home/node/.claude` に残っていたので、**トークンはあるのにアカウント情報が
+無い**状態になり、ログイン画面へ落ちていた。
+
+判定は内部状態で確定した——再認証直後の `.claude.json` が `numStartups=1` /
+`firstStartTime=` コンテナ起動時刻。一方 `/home/node/.claude/settings.local.json` は
+12 日前の作成時刻のままで、マウント自体は残っていた。
+
+**本 ADR でマウントを絞ったことが原因ではない。** `$HOME` は以前から貼っていない。
+
+### 決定
+
+| 場所 | 中身 | 種別 |
+|---|---|---|
+| `/home/node/.claude-state` | 認証情報・`.claude.json`・履歴・セッション | **名前付きボリューム** `ai-dev-claude-state` |
+| `/home/node/.claude` | 共通 deny・フック・`agents`・`skills` | 基盤リポ `.claude` の bind（ADR-012 の配布経路） |
+
+`CLAUDE_CONFIG_DIR=/home/node/.claude-state` を `containerEnv` に置く。
+`postStartCommand` から `setup-claude-config.sh` を走らせ、config ディレクトリ側に
+`settings.json` / `skills` / `agents` の symlink を張って共通側を指させる。
+
+### 理由
+
+**名前付きボリュームを選ぶ。** 共通 `.claude` は基盤リポの bind、すなわち git 作業ツリーである。
+そこを config ディレクトリにすると認証情報が作業ツリーに入る（`.gitignore` で追跡はされないが、
+`git clean` の巻き添えと `.claude/` を対象にした `cp` への混入が残る）。ボリュームなら
+Docker が所有者を設定するため非 root の `node` で権限エラーにならない——bind はホスト側の
+uid/gid をそのまま持ち込む。ボリューム名を固定しているのは、プロジェクト間で同じ資格情報を
+共有する現在の運用を保つため。共有範囲は今までと変わらない。
+
+**symlink が要る（実測で確定。2026-08-06）。** 「`CLAUDE_CONFIG_DIR` をボリュームへ向けるだけで
+symlink 不要」という変種を先に検討したが、成立しない。`CLAUDE_CONFIG_DIR` を設定すると
+**ユーザースコープ `settings.json` の読み取り元もそこへ移り、`$HOME/.claude` は一切読まれない**。
+config ディレクトリと `$HOME/.claude` の双方に `SessionStart` フックを置いて測ったところ、
+config ディレクトリ側だけが発火した。つまり config ディレクトリと ADR-012 の配布経路は
+独立しておらず、config ディレクトリ側から共通側を指すほかない。
+
+`CLAUDE_CODE_MANAGED_SETTINGS_PATH` で共通側を配る案（Claude Code が書き戻さないので
+symlink が実体に化ける心配が無い）も測ったが、2.1.223 では honored されなかった（フック不発火）。
+
+`scripts/` を symlink しないのは、フック定義が `/home/node/.claude/scripts/...` という
+**絶対パス**で書かれており、config ディレクトリの位置に依存しないため。
+
+### 残る弱さ
+
+Claude Code はユーザースコープ `settings.json` を書き戻すことがある（`/config` のテーマ変更で
+実際に起きた）。書き戻しが symlink を実体ファイルに置き換えると、共通資産から静かに切り離される。
+`setup-claude-config.sh` は起動のたびに張り直すので次回起動で自己修復するが、そのセッション中の
+変更は失われる。`verify-isolation.sh` の検査 6/7 が symlink の切断を検出する。
+
 ## 結果
 
 - `profiles/_base/.devcontainer/` に `init-firewall.sh` を追加する
@@ -231,6 +287,14 @@ GitHub を許可リストへ入れた時点で、**この境界の意味が変�
   今回の実装は基盤リポ自身と雛形（`profiles/`）のみを対象とした。
   雛形が正しい形になったので、伝播は雛形との差分を当てる作業になる。
   どのプロジェクトが未適用かは非公開の運用記録で追跡する。
+
+- **認証情報の分離は基盤リポの devcontainer にのみ適用（2026-08-06）。**
+  `profiles/_base` / `service-templates` / `profiles/product-web`（compose）と、既存の
+  `projects/` 配下は従来のまま——config ディレクトリが共通 `.claude` のままなので、
+  そこから起動した Claude Code は認証情報を git 作業ツリーへ書き、`.claude.json` は
+  Rebuild で消え続ける。雛形への展開は `new-service.sh` の配布リストと `_base` の
+  Dockerfile 複製対も動かすため、別の変更として行う。監査の検査(13)も現時点では
+  基盤リポの `devcontainer.json` / `Dockerfile` のみを見ている。
 
 - **生成物（product-web / product-static）での許可ドメイン実測は未実施。**
   許可リストの実測は基盤リポの devcontainer でのみ行った（2026-08-04・記録は

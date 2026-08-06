@@ -1,7 +1,7 @@
 {
   // 基盤リポジトリ自身の開発環境。隔離境界として設計する（ADR-013 第1層）。
   //
-  // マウントは「このリポジトリ」と「共通の .claude」の2本だけ。
+  // マウントは「このリポジトリ」「共通の .claude」「Claude Code の私的状態」の3本だけ。
   // ホームディレクトリ・SSH 秘密鍵・Docker ソケット・兄弟ディレクトリは貼らない。
   // 2026-08-04 以前は ${localWorkspaceFolder}/.. （ホスト上の親ディレクトリ全体）と
   // ${localEnv:HOME}/.ssh を貼っていた。前者は ADR-010 でプロジェクトを projects/ 配下へ
@@ -15,7 +15,17 @@
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "mounts": [
-    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated"
+    // 共通資産の配布経路（共通 deny・フック・agents・skills）。ADR-012 フェーズ2で唯一の経路になった
+    "source=${localWorkspaceFolder}/.claude,target=/home/node/.claude,type=bind,consistency=delegated",
+
+    // Claude Code の私的状態（認証情報・.claude.json・履歴・セッション）。
+    // **bind ではなく名前付きボリューム**にする理由（ADR-013）:
+    //   1. 上の bind は git 作業ツリーそのものなので、そこへ認証情報を置かない
+    //   2. Docker が所有者を設定するため、非 root の node で権限エラーにならない
+    //      （bind はホスト側の uid/gid をそのまま持ち込む）
+    //   3. コンテナの再生成をまたいで残る——これが無いと Rebuild のたびに再ログインになる
+    // 名前を固定しているのは、プロジェクト間で同じ資格情報を共有する現在の運用を保つため。
+    "source=ai-dev-claude-state,target=/home/node/.claude-state,type=volume"
   ],
 
   // ファイアウォール（init-firewall.sh）が iptables/ipset を操作するために要る。
@@ -30,9 +40,16 @@
   // ワークスペース内のファイルにも、イメージにも置かない——秘密の住所はホスト側のままにする。
   // 未設定なら空文字が入り、gh が未認証で失敗する（黙って別の資格情報へフォールバックしない）。
   // ホスト側の設定例: シェルの起動ファイルに `export GH_TOKEN=github_pat_...` を書く
+  //
+  // CLAUDE_CONFIG_DIR: Claude Code が認証情報・.claude.json・履歴を書く先を、共通 .claude
+  // （＝git 作業ツリー）から名前付きボリュームへ逃がす。**未設定だと .claude.json が
+  // $HOME 直下に落ち、$HOME はどのマウントにも含まれないため Rebuild で消えて再ログインになる**。
+  // 設定すると settings.json の読み取り元もここへ移るため、共通資産は
+  // setup-claude-config.sh が symlink で見せる（2026-08-06 実測。ADR-013 参照）。
   "containerEnv": {
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+    "GH_TOKEN": "${localEnv:GH_TOKEN}",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude-state"
   },
 
   "remoteUser": "node",
@@ -53,6 +70,11 @@
   // 外向き既定拒否を適用する。postCreate ではなく postStart なのは、iptables の設定が
   // コンテナ再起動で消えるため（作成時1回では2回目以降の起動で無防備になる）。
   // waitFor により、遮断が完了するまでコンテナは準備完了にならない。
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  //
+  // setup-claude-config.sh も postStart で走らせる。共通資産への symlink はボリューム側に
+  // 張るため、ボリュームがマウントされた後でないと作れない。こちらも fail-closed で、
+  // 失敗すれば waitFor によりコンテナは準備完了にならない——共通 deny とフックが
+  // 読まれないまま bypassPermissions で起動するのを防ぐ。
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && /usr/local/bin/setup-claude-config.sh",
   "waitFor": "postStartCommand"
 }

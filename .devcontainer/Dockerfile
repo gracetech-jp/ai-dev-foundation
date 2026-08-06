@@ -36,12 +36,21 @@ RUN usermod -l node ubuntu \
 # 2026-08-04 時点で追加は0件。ファイルは空でも COPY 対象として残す（詳細は当該ファイルのコメント）。
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh
 COPY extra-allowed-domains.txt /usr/local/share/extra-allowed-domains.txt
-RUN chown root:root /usr/local/bin/init-firewall.sh /usr/local/share/extra-allowed-domains.txt \
-    && chmod 0755 /usr/local/bin/init-firewall.sh \
+# 私的状態と共通資産の分離（ADR-013）。ファイアウォールと同じ理由でイメージ内の root 所有コピーを
+# 実行する——ワークスペース側を実行対象にすると、書き換えてから走らせる経路が残る。
+COPY setup-claude-config.sh /usr/local/bin/setup-claude-config.sh
+RUN chown root:root /usr/local/bin/init-firewall.sh /usr/local/bin/setup-claude-config.sh /usr/local/share/extra-allowed-domains.txt \
+    && chmod 0755 /usr/local/bin/init-firewall.sh /usr/local/bin/setup-claude-config.sh \
     && chmod 0444 /usr/local/share/extra-allowed-domains.txt
 
 USER node
 WORKDIR /home/node
+
+# Claude Code の私的状態（認証情報・履歴・セッション）を置く名前付きボリュームのマウント先。
+# **イメージ内に node 所有で先に作っておく**: Docker は空の名前付きボリュームを
+# マウント先の内容と所有者で初期化するため、ここが無いと root 所有で作られ、
+# 非 root の node が書けなくなる（ADR-013）。
+RUN mkdir -p /home/node/.claude-state
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

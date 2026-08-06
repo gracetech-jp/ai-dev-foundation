@@ -366,6 +366,9 @@ MIGRATION_PAIRS=(
 	# 基盤リポ自身の .devcontainer にも複製が要る（docker の COPY はビルドコンテキストの外を読めない）
 	"common/docker/init-firewall.sh:profiles/_base/.devcontainer/init-firewall.sh"
 	"common/docker/init-firewall.sh:.devcontainer/init-firewall.sh"
+	# 私的状態と共通資産の分離（ADR-013）: 同上。Dockerfile が COPY するため複製が要る。
+	# 配布雛形（profiles/_base・service-templates・product-web）への展開は未実施（ADR-013「未解決」）
+	"common/docker/setup-claude-config.sh:.devcontainer/setup-claude-config.sh"
 	# composite action の同梱スクリプト: 正本は common/scripts/（$GITHUB_ACTION_PATH から読むため同梱が必須）
 	"common/scripts/check-requirements-coverage.sh:.github/actions/req-coverage/check-requirements-coverage.sh"
 	"common/scripts/check-tier-tripwire.sh:.github/actions/tier-tripwire/check-tier-tripwire.sh"
@@ -537,6 +540,29 @@ for dj in "$ROOT/profiles/_base/.devcontainer/devcontainer.json" \
 	grep -q '/home/node/\.claude' "$mount_src" \
 		|| report "隔離境界の退化: ${mount_src#"$ROOT"/} が共通 .claude を /home/node/.claude へマウントしていません（フックもルールも配られなくなります。ADR-012）"
 done
+
+# 私的状態の逃がし先（ADR-013・2026-08-06）。共通 .claude は git 作業ツリーの bind なので、
+# Claude Code の config ディレクトリをそこに置くと**認証情報が git 作業ツリーに入る**。
+# さらに CLAUDE_CONFIG_DIR が無いと .claude.json が $HOME 直下（どのマウントにも無い）へ落ち、
+# Rebuild のたびに再ログインになる。設定ファイルを読めば分かる退化なのでここで見る
+# （実際に分離できているかの実測は verify-isolation.sh が担う）。
+# 現時点の対象は基盤リポ自身のみ。配布雛形への展開は未実施（ADR-013「未解決」に記録）。
+FOUNDATION_DEVCONTAINER="$ROOT/.devcontainer/devcontainer.json"
+if [ ! -f "$FOUNDATION_DEVCONTAINER" ]; then
+	report "隔離境界の退化: .devcontainer/devcontainer.json がありません"
+else
+	grep -q '"CLAUDE_CONFIG_DIR"[[:space:]]*:[[:space:]]*"/home/node/\.claude-state"' "$FOUNDATION_DEVCONTAINER" \
+		|| report "隔離境界の退化: .devcontainer/devcontainer.json の containerEnv に CLAUDE_CONFIG_DIR=/home/node/.claude-state がありません（認証情報が git 作業ツリーへ戻り、.claude.json が Rebuild で消えます。ADR-013）"
+	grep -q 'target=/home/node/\.claude-state,type=volume' "$FOUNDATION_DEVCONTAINER" \
+		|| report "隔離境界の退化: .devcontainer/devcontainer.json が /home/node/.claude-state へ名前付きボリュームを貼っていません（Rebuild で認証情報が消えます。ADR-013）"
+	# 呼び出し行そのものを見る。ファイル全体を grep するとコメント中の言及で緑になる。
+	grep -q '"postStartCommand"[^"]*"[^"]*setup-claude-config\.sh' "$FOUNDATION_DEVCONTAINER" \
+		|| report "隔離境界の退化: .devcontainer/devcontainer.json の postStartCommand が setup-claude-config.sh を呼んでいません（共通 deny・フック・agents・skills が config dir から見えなくなります。ADR-012／ADR-013）"
+	grep -q 'COPY setup-claude-config\.sh' "$ROOT/.devcontainer/Dockerfile" \
+		|| report "隔離境界の退化: .devcontainer/Dockerfile が setup-claude-config.sh を COPY していません（postStart が失敗してコンテナが準備完了になりません）"
+	grep -q 'mkdir -p /home/node/\.claude-state' "$ROOT/.devcontainer/Dockerfile" \
+		|| report "隔離境界の退化: .devcontainer/Dockerfile が /home/node/.claude-state を作っていません（名前付きボリュームが root 所有で初期化され、node が書けなくなります）"
+fi
 
 echo "[audit] (14) 二重化の突合（第2層 permissions.deny ↔ 第3層 PreToolUse フック）..."
 # ADR-012 決定4: deny で表現できる判定は deny へ**追加**し、フックにも残す（二重化）。

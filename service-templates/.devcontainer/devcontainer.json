@@ -29,12 +29,15 @@
     "source=${localWorkspaceFolder}/../../.ai-dev-foundation-root,target=/workspaces/foundation/.ai-dev-foundation-root,type=bind,readonly",
     "source=${localWorkspaceFolder}/../../CLAUDE.md,target=/workspaces/foundation/CLAUDE.md,type=bind,readonly",
     "source=${localWorkspaceFolder}/../../docs,target=/workspaces/foundation/docs,type=bind,readonly",
-    "source=${localWorkspaceFolder}/../../common,target=/workspaces/foundation/common,type=bind,readonly",
+    "source=${localWorkspaceFolder}/../../common,target=/workspaces/foundation/common,type=bind,readonly"
 
     // 兄弟プロジェクト（../../projects/ 配下）は**絶対にマウントしない**。
     // 貼ると他サービスの .env・認証情報がこのコンテナから読めてしまう。
-
-    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
+    //
+    // SSH 秘密鍵も貼らない（2026-08-06 撤去。ADR-013）。readonly でも秘密鍵そのものであり、
+    // 公式ドキュメントも ~/.ssh やクラウド認証情報をコンテナへ貼らないよう明記している。
+    // 基盤リポと profiles/_base では 2026-08-04 に外したが、この雛形だけ取り残されていた。
+    // 帰結: origin が SSH ならコンテナ内から git fetch / pull はできない。リモート操作はホストで行う。
   ],
 
   "remoteUser": "node",
