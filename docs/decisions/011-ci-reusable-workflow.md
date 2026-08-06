@@ -37,6 +37,7 @@ jobs:
     uses: gracetech-jp/ai-dev-foundation/.github/workflows/service-ci.yml@v1
     with:
       profile: product-web
+      foundation-ref: v1     # uses: のタグと同じ値。省くと main が使われる（注意事項・2026-08-06）
 ```
 
 `service-templates/` は廃止する。
@@ -56,6 +57,10 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
 ## 注意事項
 
 - 本番ワークフローは `@main` ではなくタグを指す。バージョン付きにより、パイプラインを壊さずに旧版を非推奨にできる
+- **`uses:` のタグと同じ ref を `foundation-ref` にも渡す**（2026-08-06 追記）。
+  `github.job_workflow_sha` が空になるため、省くと共通基盤の checkout が既定ブランチへ落ち、
+  **タグでピン止めしても main のコードでゲートが回る**。二重記述になるが、症状が出ないまま
+  版がずれるより優先する（実測と経緯: `docs/audit/adr011-phase2-plan-20260804.md` §8-5）
 - 基盤内部から composite action を参照する場合は `./.github/actions/...` の相対パス構文を使う。常に同じコミットのコードを参照するため ref 管理が不要
 - 共有ワークフローのリポジトリ自体で CI を走らせ、全 composite action が意図通り動くことを検証する。既存の bats 235 ケースに reusable workflow の検証を追加する
 - 組織名 `gracetech-jp` のハードコードは composite action / reusable workflow の仕様上回避不可。プロジェクト固有情報の混入とはみなさない
@@ -106,9 +111,11 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
   - **第2回（修正後）は全ジョブ緑**。側置きチェックアウトが成立し、composite action が
     workspace 直下の `common/scripts/` を読んでゲートを実行した。`@main` の解決先は
     API の `referenced_workflows[].sha` で確定（`fa24bdc…`＝dispatch 時の main の HEAD）
-  - **`job_workflow_sha` のリテラル値だけ未観測**。実行ログ本体は隔離コンテナから読めないため、
-    記録ステップを `::notice::`（annotation）へ変え、あわせて**空なら落とす判定**を入れた
-    （空だと既定ブランチへ落ち、ゲートを定義したコミットと実行するコミットがずれる）
+  - **`job_workflow_sha` は空だった**（第3回・実測。annotation 経由で確認）。
+    **設計の前提が崩れている**——未指定時に checkout が既定ブランチへ落ちるため、
+    `@v1` でピン止めしても共通基盤は `main` が使われる＝**バージョン固定が無効化される**。
+    しかもゲートは緑になるので症状が出ない。当面は `foundation-ref` を明示し、
+    未指定で空になる経路は fail-closed で落とす（実装済み）。詳細と次の測定: 計画書 §8-5
   - **配る前に不具合を1件検出した**: App 未設定時に `token:` へ空文字が入り checkout が落ちる。
     サービス側が移行すれば全リポジトリで再現する形だった（修正済み）。
     **手順6 を「一時的な検証」ではなく常設の口として残す根拠がここで実証された**

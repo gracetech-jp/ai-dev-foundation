@@ -57,3 +57,9 @@ jobs:
       runtime: none
       common-gates: "lint"
       stack-gates: ""
+      # **2026-08-06 の実測で判明した回避策。** `github.job_workflow_sha` は空だった
+      # （計画書 §8-5）。指定しないと共通基盤の checkout が**既定ブランチへ落ちる**——
+      # `@v1` で呼んでも main のコードでゲートが回るということで、バージョン固定が無効になる。
+      # 呼び出し側の `uses: ...@main` と**同じ ref をここにも書く**。二重記述だが、
+      # 黙って別の版で回るよりはよい（一致は将来の監査で機械検証する余地がある）。
+      foundation-ref: main

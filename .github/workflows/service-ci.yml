@@ -140,11 +140,17 @@ jobs:
       - name: 共通基盤の実体を記録する
         run: |
           sha="${{ github.job_workflow_sha }}"
+          # 2026-08-06 実測: この構成では job_workflow_sha が**空**だった（下の判定が発火した）。
+          # 代替になりうる文脈を同時に出して、次の実行で使えるものを見極める。
+          # job_workflow_ref は `org/repo/.github/workflows/x.yml@refs/heads/main` の形が期待値で、
+          # 値が入っていれば @ 以降を ref として使えるはず（＝呼び出し側に ref を二重に書かせずに済む）。
+          jwref="${{ github.job_workflow_ref }}"
+          wfref="${{ github.workflow_ref }}"
           head="$(git rev-parse HEAD)"
           # ::notice:: は check run の annotation として残る。**実行ログ本体は
           # results-receiver / Azure Blob へ取りに行くため隔離コンテナからは読めない**が、
           # annotation は api.github.com で読める（2026-08-06 実測）。値を追える口をここに置く。
-          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
+          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / job_workflow_ref=${jwref:-（空）} / workflow_ref=${wfref:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
           # 空だと checkout は既定ブランチへ落ちる＝**ゲートを定義したコミットと実行するコミットがずれる**。
           # 黙って別の版で回るのが最悪なので落とす（fail-closed）。ref を明示指定した場合は対象外。
           if [ -z "${{ inputs.foundation-ref }}" ] && [ -z "$sha" ]; then
@@ -219,11 +225,17 @@ jobs:
       - name: 共通基盤の実体を記録する      # 理由は gates ジョブのコメント参照
         run: |
           sha="${{ github.job_workflow_sha }}"
+          # 2026-08-06 実測: この構成では job_workflow_sha が**空**だった（下の判定が発火した）。
+          # 代替になりうる文脈を同時に出して、次の実行で使えるものを見極める。
+          # job_workflow_ref は `org/repo/.github/workflows/x.yml@refs/heads/main` の形が期待値で、
+          # 値が入っていれば @ 以降を ref として使えるはず（＝呼び出し側に ref を二重に書かせずに済む）。
+          jwref="${{ github.job_workflow_ref }}"
+          wfref="${{ github.workflow_ref }}"
           head="$(git rev-parse HEAD)"
           # ::notice:: は check run の annotation として残る。**実行ログ本体は
           # results-receiver / Azure Blob へ取りに行くため隔離コンテナからは読めない**が、
           # annotation は api.github.com で読める（2026-08-06 実測）。値を追える口をここに置く。
-          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
+          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / job_workflow_ref=${jwref:-（空）} / workflow_ref=${wfref:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
           # 空だと checkout は既定ブランチへ落ちる＝**ゲートを定義したコミットと実行するコミットがずれる**。
           # 黙って別の版で回るのが最悪なので落とす（fail-closed）。ref を明示指定した場合は対象外。
           if [ -z "${{ inputs.foundation-ref }}" ] && [ -z "$sha" ]; then
