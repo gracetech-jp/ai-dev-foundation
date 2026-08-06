@@ -130,19 +130,20 @@ reusable workflow を GitHub 上で実行しての検証は `.github/workflows/s
 
 **測定に由来するものは残っていない。以下はすべて実施待ちの作業。**
 
-1. ~~**手順10**~~ → **2026-08-06 実施済み**。`profiles/_base/.github/workflows/ci.yml` を
-   reusable 呼び出し（`@v2` + `foundation-ref: v2`）へ置換し、`new-service.sh` が
-   `project-name` を置換して配るようにした。宣言も `ci / gates` / `ci / secret-scan` へ更新
-2. **手順13**: `v2` を切る。**手順10 を push したら続けて切る**——それまでに生成した
-   サービスは CI が `workflow not found` で落ちる（`new-service.sh` が警告を出す）。
-   タグは名前で参照され解決は実行時なので、手順10 と鶏卵にはならない（計画書 §7 の 13）
-3. **既存2プロジェクトの移行**（手順7・9）。前提条件は結果節のとおり——
+1. **既存2プロジェクトの移行**（手順7・9）。前提条件は結果節のとおり——
    静的サイト側は Makefile のスタックゲート実装、動的アプリ側は devcontainer の compose 化
-4. **手順11・12**: `service-templates/` と composite action 3本の撤去。**3 の完了が前提**
-5. **ブランチ保護の設定**（`docs/audit/branch-protection-20260806.md`）。
+2. **手順11・12**: `service-templates/` と composite action 3本の撤去。**1 の完了が前提**
+   （両プロジェクトが composite action を参照しなくなるまで消せない）
+3. **ブランチ保護の設定**（`docs/audit/branch-protection-20260806.md`）。
    PAT に `Administration` を渡していないため、画面での操作を人が行う。
    基盤・HP の2本が対象で、`sumai-desk` は PR でテストが走らないため保留（同 §5-1）
-6. （運用に影響しない未確認）`job_workflow_*` が空になる条件——同一リポジトリ参照か
-   `workflow_dispatch` 起点か。**サービスから PR 契機で呼んだときに分かる**。
+4. （運用に影響しない未確認）`job_workflow_*` が空になる条件——同一リポジトリ参照か
+   `workflow_dispatch` 起点か。**サービスから PR 契機で呼んだときに分かる**（1 で通る）。
    どちらであっても `foundation-ref` の明示で正しく動くため、判明したら二重記述をやめるかを
    判断すればよい（それまでは明示が必須）
+
+**完了したもの**（2026-08-06）: 手順1〜6・10・13。
+手順10 で配布雛形の CI を reusable 呼び出し（`@v2` + `foundation-ref: v2`）へ置換し、
+手順13 で `v2` を `31d2a12` に切った。生成物が `@v2` を解決できることは
+`new-service.sh` を1回流して確認済み（タグ実在の警告が出ないこと・`project-name` の置換・
+生成直後の `make audit-all` が検査(6)(7) 込みで緑）。
