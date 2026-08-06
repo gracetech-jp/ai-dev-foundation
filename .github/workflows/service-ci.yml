@@ -126,7 +126,12 @@ jobs:
         with:
           repository: ${{ inputs.foundation-repository }}
           ref: ${{ inputs.foundation-ref || github.job_workflow_sha }}
-          token: ${{ steps.app-token.outputs.token }}
+          # App 未設定なら空文字が入るが、**空の token は「未指定」ではなく「不正な指定」**として
+          # 扱われ、checkout が `Input required and not supplied: token` で落ちる
+          # （2026-08-06 の selftest で実測。既定値は入力を省いたときにしか効かない）。
+          # そこで呼び出し元の GITHUB_TOKEN へ落とす。共通基盤が public ならこれで読める。
+          # private に戻したときだけ App（secrets）が要る、という分岐がこの1行に閉じる。
+          token: ${{ steps.app-token.outputs.token || github.token }}
           path: .
 
       # どのコミットの共通基盤でゲートが走ったかをログに残す。
@@ -194,7 +199,12 @@ jobs:
         with:
           repository: ${{ inputs.foundation-repository }}
           ref: ${{ inputs.foundation-ref || github.job_workflow_sha }}
-          token: ${{ steps.app-token.outputs.token }}
+          # App 未設定なら空文字が入るが、**空の token は「未指定」ではなく「不正な指定」**として
+          # 扱われ、checkout が `Input required and not supplied: token` で落ちる
+          # （2026-08-06 の selftest で実測。既定値は入力を省いたときにしか効かない）。
+          # そこで呼び出し元の GITHUB_TOKEN へ落とす。共通基盤が public ならこれで読める。
+          # private に戻したときだけ App（secrets）が要る、という分岐がこの1行に閉じる。
+          token: ${{ steps.app-token.outputs.token || github.token }}
           path: .
 
       - name: 共通基盤の実体を記録する      # 理由は gates ジョブのコメント参照

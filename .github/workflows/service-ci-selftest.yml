@@ -19,6 +19,13 @@ name: service-ci-selftest
 # あって、基盤をサービスとして検査し直すことではない（それは通常の CI が済ませている）。
 # `runtime: none` では bats も言語ランタイムも入らないため、素の runner で完結する lint だけを通す。
 #
+# 【起動は人が行う】
+# `gh workflow run` は **Actions: write** を要する。コンテナへ渡している PAT は Actions: Read で、
+# 2026-08-06 に実測して 403 を確認した。**書き込みを足さない**——selftest の起動は稀な操作で、
+# そのために「任意のワークフローを起動できる」権限を常時渡すのは爆発半径に見合わない（R-003）。
+#   gh workflow run service-ci-selftest.yml --repo gracetech-jp/ai-dev-foundation
+# 結果の読み取り（run list / view / check-runs）は Actions: Read の範囲で足りる。
+#
 # 確認したいこと（docs/audit/adr011-phase2-plan-20260804.md §8 の 4・7・8）:
 #   4. チェック名の実測 … gh api repos/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name'
 #      期待は `selftest / gates` `selftest / gates-db` `selftest / secret-scan`

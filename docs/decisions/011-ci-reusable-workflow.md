@@ -99,6 +99,11 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
   PAT に `Administration` を渡していないため、画面での操作を人が行う。
   基盤リポは「main 直 push を許すか」を決めないと必須チェックを入れられない（同ファイル §5）。
 - reusable workflow を GitHub 上で実行しての検証は `.github/workflows/service-ci-selftest.yml`
-  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**未実行**。
-  これで確定させるのは「reusable 経由のチェック名」「`job_workflow_sha` の解決先」
-  「skip されたジョブの conclusion」の3点（フェーズ2計画 §8 の 4・7・8）
+  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**第1回を実行済み**（計画書 §8-2）。
+  - **チェック名は `<呼び出し側のジョブ id> / <reusable 側のジョブ名>`** と確定
+    （実測: `selftest / gates`）。雛形どおり `ci:` で呼べば `ci / gates` になる
+  - **skip されたジョブも check run は作られ、conclusion が `skipped` になる**（永久ペンディングにはならない）
+  - **`job_workflow_sha` の解決先は未確定**。第1回は checkout の不具合で記録ステップに到達しなかった
+  - **配る前に不具合を1件検出した**: App 未設定時に `token:` へ空文字が入り checkout が落ちる。
+    サービス側が移行すれば全リポジトリで再現する形だった（修正済み）。
+    **手順6 を「一時的な検証」ではなく常設の口として残す根拠がここで実証された**

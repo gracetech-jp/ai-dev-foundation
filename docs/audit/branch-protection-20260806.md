@@ -284,6 +284,12 @@ gh api repos/gracetech-jp/<repo>/branches/main/protection \
 gh api repos/gracetech-jp/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name'
 ```
 
-**skip されたジョブの扱い**（ADR-011 §8 の8）は selftest の `selftest / gates-db` の conclusion で
-実測する。GitHub は条件で skip されたジョブを必須チェックに対して成功として扱う仕様だが、
-**contexts に入れない方針（§6-1）を採るので、この仕様に依存しない。**
+**skip されたジョブの扱い**（ADR-011 §8 の8）は 2026-08-06 の selftest で実測した。
+`if:` で skip された `gates-db` も **check run 自体は作られ、conclusion が `skipped` になる**
+（`selftest / gates-db  skipped`）。「報告されずに永久ペンディング」にはならない。
+ただし**必須チェックがこれを合格として扱うか**は保護を入れないと測れないため、
+**contexts に入れない方針（§6-1）を採ってこの仕様に依存しない。**
+
+**チェック名の接頭辞**（同 4）も同時に確定した。`selftest / gates` が出たので、接頭辞は
+**呼び出し側のジョブ id**（定数 `ci` ではない）。サービス側が雛形どおり `ci:` で呼べば
+`ci / gates` になる、という §6-1 の記述はこれで裏が取れた。

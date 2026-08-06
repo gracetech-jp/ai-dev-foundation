@@ -534,6 +534,49 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	[ "$status" -eq 0 ]
 }
 
+@test "赤: skip されうるステップの出力を token へ直接渡すと fail する" {
+	# 2026-08-06 の selftest 実測。App 未設定で create-github-app-token が skip されると
+	# token に空文字が入り、checkout が `Input required and not supplied: token` で落ちた。
+	# 入力の既定値は「省いたとき」にしか効かないので、空文字は未指定として扱われない。
+	make_sandbox
+	cat > "$SB/.github/workflows/probe.yml" <<-'YAML'
+		name: probe
+		on:
+		  workflow_call:
+		jobs:
+		  x:
+		    runs-on: ubuntu-latest
+		    steps:
+		      - uses: actions/create-github-app-token@v2
+		        id: app-token
+		        if: env.HAS_APP_TOKEN == 'true'
+		      - uses: actions/checkout@v4
+		        with:
+		          token: ${{ steps.app-token.outputs.token }}
+	YAML
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"空になりうる token"* ]]
+}
+
+@test "緑: '|| github.token' の代替が書いてあれば通る（正しい回避形）" {
+	make_sandbox
+	cat > "$SB/.github/workflows/probe.yml" <<-'YAML'
+		name: probe
+		on:
+		  workflow_call:
+		jobs:
+		  x:
+		    runs-on: ubuntu-latest
+		    steps:
+		      - uses: actions/checkout@v4
+		        with:
+		          token: ${{ steps.app-token.outputs.token || github.token }}
+	YAML
+	run audit
+	[ "$status" -eq 0 ]
+}
+
 @test "赤: 必須チェック宣言が消えると検査(16)が fail する（配線されていること）" {
 	# 検査の中身は tests/check-required-checks.bats が固定している。ここで見るのは
 	# 「監査から実際に呼ばれているか」——呼び出しが外れても他は緑のままなので、単体では気づけない。

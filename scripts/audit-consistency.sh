@@ -618,6 +618,12 @@ for wf in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/actions/*/action.yml; 
 	if grep -nE '^[[:space:]]*if:.*secrets\.' "$wf" >/dev/null 2>&1; then
 		report "ワークフロー式の文脈エラー: $rel の if: が secrets を参照しています（if: では使えません。job-level env に落としてから env を見ること。ファイル全体が Invalid workflow file になります）"
 	fi
+	# 踏んだ穴その2（2026-08-06 の selftest 実測）: skip されうるステップの出力をそのまま `token:` へ渡すと、
+	# skip 時に**空文字**が入る。入力の既定値は「省いたとき」にしか効かないため、空文字は「未指定」ではなく
+	# 「不正な指定」になり `Input required and not supplied: token` で落ちる。`||` で代替を書くこと。
+	if grep -nE '^[[:space:]]*token:[[:space:]]*\$\{\{[[:space:]]*steps\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+[[:space:]]*\}\}' "$wf" >/dev/null 2>&1; then
+		report "空になりうる token: $rel が skip されうるステップの出力を token へ直接渡しています（skip 時に空文字＝不正な指定になり checkout が落ちます。'|| github.token' 等の代替を書くこと）"
+	fi
 done
 
 echo "[audit] (16) 必須ステータスチェック宣言の検査..."
