@@ -26,6 +26,13 @@ name: service-ci-selftest
 #   gh workflow run service-ci-selftest.yml --repo gracetech-jp/ai-dev-foundation
 # 結果の読み取り（run list / view / check-runs）は Actions: Read の範囲で足りる。
 #
+# 【この selftest が確認しないこと】
+# **プロジェクト側 Makefile のマーカー上方探索（COMMON_ROOT 解決）は踏まない。**
+# 呼び出し元が基盤自身なので projects/<name> に入るのも基盤で、そこには
+# `.ai-dev-foundation-root` が同梱されている＝探索は外側へ出ずに自分自身で止まる。
+# 実サービス（マーカーを持たない）が外側の共通基盤を解決する経路は
+# tests/side-by-side-layout.bats がローカルで固定している。緑を過大に読まないこと。
+#
 # 確認したいこと（docs/audit/adr011-phase2-plan-20260804.md §8 の 4・7・8）:
 #   4. チェック名の実測 … gh api repos/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name'
 #      期待は `selftest / gates` `selftest / gates-db` `selftest / secret-scan`

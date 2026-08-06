@@ -139,9 +139,18 @@ jobs:
       # になるが、これは**呼び出し元からは観測できない**文脈なので、ここで実体と並べて記録する。
       - name: 共通基盤の実体を記録する
         run: |
-          echo "job_workflow_sha = ${{ github.job_workflow_sha }}"
-          echo "foundation-ref   = ${{ inputs.foundation-ref }} (空なら job_workflow_sha)"
-          echo "checked out HEAD = $(git rev-parse HEAD)"
+          sha="${{ github.job_workflow_sha }}"
+          head="$(git rev-parse HEAD)"
+          # ::notice:: は check run の annotation として残る。**実行ログ本体は
+          # results-receiver / Azure Blob へ取りに行くため隔離コンテナからは読めない**が、
+          # annotation は api.github.com で読める（2026-08-06 実測）。値を追える口をここに置く。
+          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
+          # 空だと checkout は既定ブランチへ落ちる＝**ゲートを定義したコミットと実行するコミットがずれる**。
+          # 黙って別の版で回るのが最悪なので落とす（fail-closed）。ref を明示指定した場合は対象外。
+          if [ -z "${{ inputs.foundation-ref }}" ] && [ -z "$sha" ]; then
+            echo "::error::job_workflow_sha が空です（ref 解決が既定ブランチへ落ちています）"
+            exit 1
+          fi
 
       # 2本目: 呼び出し元プロジェクトを projects/<name> へ。
       # fetch-depth: 0 は tier-tripwire の差分基準（origin/main）に必須。
@@ -209,9 +218,18 @@ jobs:
 
       - name: 共通基盤の実体を記録する      # 理由は gates ジョブのコメント参照
         run: |
-          echo "job_workflow_sha = ${{ github.job_workflow_sha }}"
-          echo "foundation-ref   = ${{ inputs.foundation-ref }} (空なら job_workflow_sha)"
-          echo "checked out HEAD = $(git rev-parse HEAD)"
+          sha="${{ github.job_workflow_sha }}"
+          head="$(git rev-parse HEAD)"
+          # ::notice:: は check run の annotation として残る。**実行ログ本体は
+          # results-receiver / Azure Blob へ取りに行くため隔離コンテナからは読めない**が、
+          # annotation は api.github.com で読める（2026-08-06 実測）。値を追える口をここに置く。
+          echo "::notice::共通基盤: job_workflow_sha=${sha:-（空）} / checkout HEAD=${head} / foundation-ref=${{ inputs.foundation-ref }}"
+          # 空だと checkout は既定ブランチへ落ちる＝**ゲートを定義したコミットと実行するコミットがずれる**。
+          # 黙って別の版で回るのが最悪なので落とす（fail-closed）。ref を明示指定した場合は対象外。
+          if [ -z "${{ inputs.foundation-ref }}" ] && [ -z "$sha" ]; then
+            echo "::error::job_workflow_sha が空です（ref 解決が既定ブランチへ落ちています）"
+            exit 1
+          fi
 
       - uses: actions/checkout@v4
         with:

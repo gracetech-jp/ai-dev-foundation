@@ -99,11 +99,16 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
   PAT に `Administration` を渡していないため、画面での操作を人が行う。
   基盤リポは「main 直 push を許すか」を決めないと必須チェックを入れられない（同ファイル §5）。
 - reusable workflow を GitHub 上で実行しての検証は `.github/workflows/service-ci-selftest.yml`
-  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**第1回を実行済み**（計画書 §8-2）。
+  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**2回実行済み**（計画書 §8-2・§8-3）。
   - **チェック名は `<呼び出し側のジョブ id> / <reusable 側のジョブ名>`** と確定
     （実測: `selftest / gates`）。雛形どおり `ci:` で呼べば `ci / gates` になる
   - **skip されたジョブも check run は作られ、conclusion が `skipped` になる**（永久ペンディングにはならない）
-  - **`job_workflow_sha` の解決先は未確定**。第1回は checkout の不具合で記録ステップに到達しなかった
+  - **第2回（修正後）は全ジョブ緑**。側置きチェックアウトが成立し、composite action が
+    workspace 直下の `common/scripts/` を読んでゲートを実行した。`@main` の解決先は
+    API の `referenced_workflows[].sha` で確定（`fa24bdc…`＝dispatch 時の main の HEAD）
+  - **`job_workflow_sha` のリテラル値だけ未観測**。実行ログ本体は隔離コンテナから読めないため、
+    記録ステップを `::notice::`（annotation）へ変え、あわせて**空なら落とす判定**を入れた
+    （空だと既定ブランチへ落ち、ゲートを定義したコミットと実行するコミットがずれる）
   - **配る前に不具合を1件検出した**: App 未設定時に `token:` へ空文字が入り checkout が落ちる。
     サービス側が移行すれば全リポジトリで再現する形だった（修正済み）。
     **手順6 を「一時的な検証」ではなく常設の口として残す根拠がここで実証された**
