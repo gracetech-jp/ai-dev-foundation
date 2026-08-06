@@ -116,6 +116,27 @@ else
 	done
 fi
 
+echo "[audit] (6) 必須ステータスチェック宣言の検査..."
+# ブランチ保護の設定は GitHub 側にあり、リポジトリからは見えない。設定そのものは機械で検証できないが、
+# 「設定できる形になっていること」（宣言した名前が実在し・PR で走り・重複しない）は検証できる。
+# 実装は共通側に1本だけ置く（ADR-010: 複製しない）。解決できないときは黙って飛ばさず理由を出す。
+rc_dir="$ROOT"
+rc_script=""
+while [ "$rc_dir" != "/" ]; do
+	if [ -f "$rc_dir/.ai-dev-foundation-root" ]; then
+		rc_script="$rc_dir/common/scripts/check-required-checks.sh"
+		break
+	fi
+	rc_dir="$(dirname "$rc_dir")"
+done
+if [ -z "$rc_script" ]; then
+	echo "  ℹ 共通基盤が見つからないため必須チェック宣言の検査はスキップしました（CI の単独チェックアウト等）"
+elif [ ! -r "$rc_script" ]; then
+	report "共通基盤は見つかりましたが $rc_script が読めません（共通ゲートが配られていません）"
+else
+	bash "$rc_script" "$ROOT" || fail=1
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

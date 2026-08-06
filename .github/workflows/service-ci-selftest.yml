@@ -1,0 +1,45 @@
+name: service-ci-selftest
+
+# 配布する reusable workflow（service-ci.yml）が GitHub 上で実際に動くことを確認する口。
+# ADR-011 手順6。**基盤の通常 CI は reusable を呼ばない**（ADR-011 注意事項）ので、
+# ここは手動起動（workflow_dispatch）限定にして、push のたびには走らせない。
+#
+# 【なぜローカル参照（./.github/workflows/service-ci.yml）にしないか】
+# 測りたいのは「サービスリポジトリから呼んだときの挙動」——チェック名の付き方
+# （`<呼び出し側ジョブ id> / <reusable 側ジョブ名>`）と、`github.job_workflow_sha` による
+# 共通基盤の ref 解決である。どちらも**別リポジトリからの呼び出し**でないと同じ形にならない。
+#
+# 【なぜ @main か】
+# 本番のサービス側はタグ（`@v1`）を指す（ADR-011 注意事項1点目）。ここは逆で、
+# **これから配ることになるコードそのもの**を試す口なので main を指す。
+#
+# 【ゲートを lint 1本に絞る理由】
+# reusable は呼び出し元リポジトリを projects/<project-name> へ置く。基盤が呼べば基盤自身が
+# そこへ入るが、selftest の目的は**配線の確認**（側置き・チェック名・skip の扱い・ref 解決）で
+# あって、基盤をサービスとして検査し直すことではない（それは通常の CI が済ませている）。
+# `runtime: none` では bats も言語ランタイムも入らないため、素の runner で完結する lint だけを通す。
+#
+# 確認したいこと（docs/audit/adr011-phase2-plan-20260804.md §8 の 4・7・8）:
+#   4. チェック名の実測 … gh api repos/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name'
+#      期待は `selftest / gates` `selftest / gates-db` `selftest / secret-scan`
+#   7. job_workflow_sha … gates ジョブの「共通基盤の実体を記録する」ステップのログ
+#   8. skip の扱い    … db: none なので gates-db が skip される。その conclusion を見る
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # ジョブ id を `selftest` にしてある（サービス側の雛形は `ci`）。**わざと違える**——
+  # チェック名は `<呼び出し側のジョブ id> / <reusable 側のジョブ名>` になるはずで、
+  # ここが `ci` だと「呼び出し側の id が前に付く」のか「`ci` という定数が付く」のかを
+  # 区別できない。`selftest / gates` が出れば前者だと確定する。
+  # あわせて、基盤リポの必須ステータスチェックへ**この名前を入れてはならない**ことも明確になる
+  # （このワークフローは workflow_dispatch 限定＝ PR では走らず、指定すると PR が永久に止まる）。
+  selftest:
+    uses: gracetech-jp/ai-dev-foundation/.github/workflows/service-ci.yml@main
+    with:
+      project-name: ai-dev-foundation
+      profile: selftest
+      runtime: none
+      common-gates: "lint"
+      stack-gates: ""

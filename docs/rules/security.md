@@ -37,7 +37,7 @@
 
 | 層 | 確認手段 | タイミング |
 |---|---|---|
-| 第1層（コンテナ隔離） | `bash scripts/verify-isolation.sh`（機械・12項目） | Rebuild のたび |
+| 第1層（コンテナ隔離） | `bash scripts/verify-isolation.sh`（機械・13項目） | Rebuild のたび |
 | 第2層・第3層 | `scripts/verify-guardrails.md` の6項目（人間が叩く） | `permissions.deny` の変更時・Rebuild 時 |
 | 両層に判定が実在すること | `make audit-all` の検査(14)（機械・常時） | CI・pre-push |
 

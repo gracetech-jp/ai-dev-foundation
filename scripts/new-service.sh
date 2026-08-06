@@ -139,6 +139,9 @@ cp "$BASE/.tier-tripwire-allow" "${TARGET}/.tier-tripwire-allow"      # トリ�
 chmod +x "${TARGET}/scripts/audit-consistency.sh"
 # CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
 cp "$BASE/.github/workflows/ci.yml" "${TARGET}/.github/workflows/ci.yml"
+# 必須ステータスチェックの宣言。ブランチ保護の設定は GitHub 側にあってリポジトリからは見えないため、
+# 「何を必須にすべきか」をここに残して監査対象にする（配らないと生成直後の監査が赤になる）
+cp "$BASE/.github/required-checks.txt" "${TARGET}/.github/required-checks.txt"
 
 # PROJECT.mdをテンプレートからコピー
 cp "$BASE/PROJECT.md.template" "${TARGET}/PROJECT.md"

@@ -190,6 +190,8 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 		    steps:
 		      - run: docker run --rm ghcr.io/gitleaks/gitleaks:v8.18.4 detect
 	YAML
+	# CI の形を変えたら必須チェックの宣言も追随する（検査(16)。ここを直さないと赤になるのが正しい）
+	printf 'ci / gates\nsecret-scan\n' > "$SB/.github/required-checks.txt"
 	run audit
 	[ "$status" -eq 0 ]
 }
@@ -530,6 +532,24 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	YAML
 	run audit
 	[ "$status" -eq 0 ]
+}
+
+@test "赤: 必須チェック宣言が消えると検査(16)が fail する（配線されていること）" {
+	# 検査の中身は tests/check-required-checks.bats が固定している。ここで見るのは
+	# 「監査から実際に呼ばれているか」——呼び出しが外れても他は緑のままなので、単体では気づけない。
+	make_sandbox
+	rm "$SB/.github/required-checks.txt"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"required-checks.txt がありません"* ]]
+}
+
+@test "赤: 基盤の CI ジョブ名を変えて宣言を直し忘れると fail する" {
+	make_sandbox
+	sed -i 's/^  tier-tripwire:/  tier-tripwire-renamed:/' "$SB/.github/workflows/ci.yml"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"'tier-tripwire' がワークフローにありません"* ]]
 }
 
 @test "赤: フック本体が消えると第3層の実体喪失として fail する" {

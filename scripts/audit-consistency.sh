@@ -85,6 +85,7 @@ for req in \
 	profiles/_base/docs/requirements \
 	profiles/_base/.req-coverage-baseline profiles/_base/.tier-tripwire-allow \
 	profiles/_base/docs/service-rules profiles/_base/docs/decisions \
+	profiles/_base/.github/required-checks.txt \
 	profiles/_base/scripts/verify-guardrails.md; do
 	base="$(basename "$req")"
 	if ! grep -q "$base" "$NS"; then
@@ -618,6 +619,12 @@ for wf in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/actions/*/action.yml; 
 		report "ワークフロー式の文脈エラー: $rel の if: が secrets を参照しています（if: では使えません。job-level env に落としてから env を見ること。ファイル全体が Invalid workflow file になります）"
 	fi
 done
+
+echo "[audit] (16) 必須ステータスチェック宣言の検査..."
+# ブランチ保護の設定は GitHub 側にあり、ここからは見えない。**設定が正しいことは機械化できないが、
+# 設定できる形になっていることは機械化できる**。実装は共通側に1本だけ置き、配布雛形からも同じものを
+# 呼ぶ（ADR-010: 実体は1つ・参照する）。検査の中身と限界は check-required-checks.sh の冒頭に書いた。
+bash "$ROOT/common/scripts/check-required-checks.sh" "$ROOT" || fail=1
 
 echo ""
 if [ "$fail" -ne 0 ]; then

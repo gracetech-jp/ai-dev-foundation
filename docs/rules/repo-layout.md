@@ -20,6 +20,7 @@
 | `.claude/skills/` `.claude/agents/` | skills・サブエージェント | 骨格配布 |
 | `.devcontainer/` | 統一開発環境（詳細: `docs/decisions/`） | 骨格配布 |
 | `.github/workflows/ci.yml` | CI 多段ゲート（詳細: `docs/rules/quality-gates.md` §4） | 骨格配布 |
+| `.github/required-checks.txt` | ブランチ保護の必須チェックの宣言（詳細: `docs/rules/quality-gates.md` §4） | 雛形初期値 |
 | `.editorconfig` | エディタ非依存のスタイル強制（詳細: `docs/rules/code-style.md`） | 骨格配布 |
 | `Makefile` | 品質ゲートのターゲット契約（詳細: `docs/rules/quality-gates.md` §1） | 骨格配布 |
 | `scripts/audit-consistency.sh` | 整合性監査（詳細: `docs/rules/consistency.md`） | 雛形 |

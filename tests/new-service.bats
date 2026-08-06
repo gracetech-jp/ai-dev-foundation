@@ -17,6 +17,10 @@ setup() {
 	cp -a "$REPO/profiles" "$FSB/profiles"
 	cp -a "$REPO/common" "$FSB/common"
 	cp "$REPO/.ai-dev-foundation-root" "$FSB/"
+	# 第3層のフック本体（ユーザースコープ集約・ADR-012 フェーズ2）。生成物の audit-all は
+	# 共通側のフックとの突合まで行うため、複製にも置いておかないと本題と無関係の赤で落ちる。
+	mkdir -p "$FSB/.claude"
+	cp -a "$REPO/.claude/scripts" "$FSB/.claude/scripts"
 	SUT="$FSB/scripts/new-service.sh"
 	PROJ="$FSB/projects"
 }
@@ -48,7 +52,7 @@ make_sandbox() {
 		.coverage-floor .req-coverage-baseline .tier-tripwire-allow \
 		.devcontainer/Dockerfile .devcontainer/devcontainer.json .devcontainer/postCreate.sh \
 		.claude/settings.json \
-		.github/workflows/ci.yml \
+		.github/workflows/ci.yml .github/required-checks.txt \
 		scripts/audit-consistency.sh \
 		docs/requirements/R-000-template.md docs/service-rules/consistency.md docs/decisions/README.md; do
 		[ -e "$T/$f" ]
@@ -171,6 +175,34 @@ make_sandbox() {
 	# 黙って通さない: skip には理由の警告が付く（空虚な緑を潰す思想）
 	run make -C "$T" test
 	[[ "$output" == *"package.json"* ]]
+}
+
+@test "緑: 生成直後の audit-all が必須チェック宣言の検査まで含めて緑" {
+	# 配布した宣言（.github/required-checks.txt）と雛形 CI のジョブ名が最初から一致していること。
+	# ここがズレたまま配ると、生成した人が最初に見るのが赤の監査になる。
+	run ns svd5 --profile product-static
+	[ "$status" -eq 0 ]
+	run make -C "$PROJ/svd5" audit-all
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"必須ステータスチェック宣言"* ]]
+}
+
+@test "赤: 生成物から宣言を消すと audit-all が赤（配った検査が空撃ちでない）" {
+	run ns svd6 --profile product-static
+	[ "$status" -eq 0 ]
+	rm "$PROJ/svd6/.github/required-checks.txt"
+	run make -C "$PROJ/svd6" audit-all
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"required-checks.txt がありません"* ]]
+}
+
+@test "赤: 生成物の CI ジョブ名を変えて宣言を直し忘れると audit-all が赤" {
+	run ns svd7 --profile product-static
+	[ "$status" -eq 0 ]
+	sed -i 's/^  audit:/  audit-renamed:/' "$PROJ/svd7/.github/workflows/ci.yml"
+	run make -C "$PROJ/svd7" audit-all
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"'audit' がワークフローにありません"* ]]
 }
 
 @test "緑: product-static 生成物に .tier-tripwire-none が同梱されプレースホルダ置換も効く" {

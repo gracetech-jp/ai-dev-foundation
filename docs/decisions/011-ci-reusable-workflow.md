@@ -94,4 +94,11 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
 
 ## 未解決
 
-- ブランチ保護と必須ステータスチェックの設定状況が未確認。CI が赤でもマージを機械的に止める配線が存在するかを別途確認する
+- ~~ブランチ保護と必須ステータスチェックの設定状況が未確認~~ → **2026-08-06: 設定内容を確定して提示済み**
+  （`docs/audit/branch-protection-20260806.md`）。**設定作業そのものは未実施**——コンテナへ渡している
+  PAT に `Administration` を渡していないため、画面での操作を人が行う。
+  基盤リポは「main 直 push を許すか」を決めないと必須チェックを入れられない（同ファイル §5）。
+- reusable workflow を GitHub 上で実行しての検証は `.github/workflows/service-ci-selftest.yml`
+  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**未実行**。
+  これで確定させるのは「reusable 経由のチェック名」「`job_workflow_sha` の解決先」
+  「skip されたジョブの conclusion」の3点（フェーズ2計画 §8 の 4・7・8）

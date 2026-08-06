@@ -1,0 +1,20 @@
+# 必須ステータスチェックの宣言 — main のブランチ保護（contexts）に設定する“べき”名前。
+#
+# 実設定は GitHub 側にあり、このリポジトリからは見えない（コンテナへ渡している PAT に
+# Administration を渡していないため確認もできない）。**設定が正しいことは機械化できないが、
+# 設定できる形になっていることは機械化できる**——それがこの宣言と検査(16)の役割。
+# 実設定との突き合わせ手順は docs/audit/branch-protection-20260806.md §7。
+#
+# 検査(16)（scripts/audit-consistency.sh → common/scripts/check-required-checks.sh）が
+# ①ここの名前が実在するジョブであること ②そのワークフローが pull_request で走ること
+# ③ワークフロー間でジョブ名が重複しないこと を見る。
+#
+# **`selftest / *` を入れないこと。** service-ci-selftest.yml は workflow_dispatch 限定で、
+# PR では走らない＝報告されないチェックを必須にすると PR が永久にブロックされる。
+
+audit
+lint
+test
+req-coverage
+tier-tripwire
+secret-scan

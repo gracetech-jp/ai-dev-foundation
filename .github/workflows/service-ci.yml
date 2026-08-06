@@ -129,6 +129,15 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           path: .
 
+      # どのコミットの共通基盤でゲートが走ったかをログに残す。
+      # foundation-ref を省くと解決先は github.job_workflow_sha（＝呼ばれた reusable 自身のコミット）
+      # になるが、これは**呼び出し元からは観測できない**文脈なので、ここで実体と並べて記録する。
+      - name: 共通基盤の実体を記録する
+        run: |
+          echo "job_workflow_sha = ${{ github.job_workflow_sha }}"
+          echo "foundation-ref   = ${{ inputs.foundation-ref }} (空なら job_workflow_sha)"
+          echo "checked out HEAD = $(git rev-parse HEAD)"
+
       # 2本目: 呼び出し元プロジェクトを projects/<name> へ。
       # fetch-depth: 0 は tier-tripwire の差分基準（origin/main）に必須。
       - uses: actions/checkout@v4
@@ -187,6 +196,12 @@ jobs:
           ref: ${{ inputs.foundation-ref || github.job_workflow_sha }}
           token: ${{ steps.app-token.outputs.token }}
           path: .
+
+      - name: 共通基盤の実体を記録する      # 理由は gates ジョブのコメント参照
+        run: |
+          echo "job_workflow_sha = ${{ github.job_workflow_sha }}"
+          echo "foundation-ref   = ${{ inputs.foundation-ref }} (空なら job_workflow_sha)"
+          echo "checked out HEAD = $(git rev-parse HEAD)"
 
       - uses: actions/checkout@v4
         with:
