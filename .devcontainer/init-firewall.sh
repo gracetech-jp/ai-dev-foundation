@@ -164,12 +164,35 @@ for domain in "${domains[@]}"; do
 	echo "[firewall] 許可: $domain"
 done
 
-# 4. ホストとの通信（VS Code のリモート接続・ポート転送）は通す
-host_ip="$(ip route | awk '/^default/ {print $3; exit}')"
-[ -n "$host_ip" ] || die "デフォルトゲートウェイを特定できません"
-host_network="${host_ip%.*}.0/24"
+# 4. ホストとの通信（VS Code のリモート接続・ポート転送）と、同じネットワーク上の
+#    兄弟コンテナ（compose の postgres 等）への内部通信は通す。
+#
+# 【ゲートウェイ IP から /24 を推測しない】
+# 以前は `${gw%.*}.0/24` と書いていた。**compose が作る user-defined network の既定は /16** で、
+# サブネットの一部しか許可していない状態だった。動いていたのは、コンテナのアドレスが
+# たまたま第3オクテット 0 に収まっていたからにすぎない（2026-08-06 の実測: 実ネットワークは
+# 172.18.0.0/16、コンテナは 172.18.0.2）。兄弟サービスが 172.18.1.x を引いた時点で
+# **内部通信が REJECT される**——しかも「たまに繋がらない」形で出るので原因が分かりにくい。
+# インターフェースに実際に割り当てられた CIDR から求める。
+#
+# 【この許可の実効範囲＝コンテナが載っているネットワーク】
+# 許可されるのは「同じ docker ネットワークに居るもの」であって、広さは CIDR ではなく
+# **どのネットワークに繋いだか**で決まる。既定 bridge を共有すると他プロジェクトのコンテナにも
+# 届くので、compose 方式では**プロジェクト専用のネットワークを作ること**（既定 bridge に相乗りしない）。
+default_route="$(ip route | awk '/^default/ {print; exit}')"
+[ -n "$default_route" ] || die "デフォルトゲートウェイを特定できません"
+host_dev="$(printf '%s\n' "$default_route" | awk '{for (i = 1; i < NF; i++) if ($i == "dev") {print $(i + 1); exit}}')"
+[ -n "$host_dev" ] || die "デフォルトルートのインターフェースを特定できません"
+# カーネルが張るサブネット経路（scope link）が第一候補。無ければアドレスの prefix から採る
+# （iptables は host/prefix を渡してもネットワークへ丸めるので、どちらでも同じ範囲になる）。
+host_network="$(ip -o -f inet route show dev "$host_dev" scope link | awk '{print $1; exit}')"
+[ -n "$host_network" ] || host_network="$(ip -o -f inet addr show dev "$host_dev" | awk '{print $4; exit}')"
+# 取れなければ黙って狭い値で代用しない（それが今回の不具合の形）。落とす。
+printf '%s' "$host_network" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$' \
+	|| die "$host_dev のネットワーク CIDR を特定できません（取得値: '${host_network:-なし}'）"
 iptables -A INPUT -s "$host_network" -j ACCEPT
 iptables -A OUTPUT -d "$host_network" -j ACCEPT
+echo "[firewall] 内部ネットワーク許可: $host_network（$host_dev）"
 
 # 5. 既定拒否にしてから、許可済みだけを通す
 iptables -P INPUT DROP

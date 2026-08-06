@@ -66,9 +66,27 @@ make_stubs() {
 		done
 		printf '%s.\t300\tIN\tA\t203.0.113.10\n' "$domain"
 	EOF
+	# `ip` は3つの呼ばれ方をする。既定は「compose が作る user-defined network」を模す（/16）。
+	#   ip route                                   … デフォルトルート
+	#   ip -o -f inet route show dev X scope link  … カーネルが張るサブネット経路
+	#   ip -o -f inet addr show dev X              … アドレス（scope link 経路が無い環境の代替）
+	# STUB_LINK_ROUTE を空にすると1つ目が無い環境（代替経路のテスト）になる。
 	cat > "$SB/bin/ip" <<-'EOF'
 		#!/usr/bin/env bash
-		echo "default via 172.17.0.1 dev eth0"
+		# `-` であって `:-` ではない。空文字を「未設定」に丸めると、
+		# 「取得できない環境」を再現できず fail-closed のテストが空撃ちになる
+		net="${STUB_NET-172.18.0.0/16}"
+		addr="${STUB_ADDR-172.18.0.2/16}"
+		case "$*" in
+			*"route show dev"*"scope link"*)
+				[ -n "${STUB_LINK_ROUTE-1}" ] || exit 0
+				echo "$net dev eth0 proto kernel src ${addr%/*}" ;;
+			*"addr show dev"*)
+				echo "2: eth0    inet $addr brd 172.18.255.255 scope global eth0" ;;
+			*)
+				[ -n "${STUB_DEFAULT_ROUTE-1}" ] || exit 0
+				echo "default via 172.18.0.1 dev eth0" ;;
+		esac
 	EOF
 	# 到達可否は環境変数で切り替える（遮断側・許可側を独立に壊せるようにするため）。
 	cat > "$SB/bin/curl" <<-'EOF'
@@ -118,6 +136,56 @@ fw() { bash "$SUT" "$@"; }
 	run fw
 	base_only="$(printf '%s\n' "$output" | grep -c '^\[firewall\] 許可: ')"
 	[ "$allowed" -eq "$((base_only + 1))" ]
+}
+
+# ---- 内部ネットワークの許可範囲（compose の兄弟サービスへの通信） ----
+#
+# 2026-08-06 に見つかった不具合の回帰。旧実装は**ゲートウェイ IP から /24 を推測**していた。
+# compose の user-defined network は既定 /16 なので、サブネットの一部しか許可されていない。
+# 実測（このリポジトリの devcontainer）では実ネットワーク 172.18.0.0/16・コンテナ 172.18.0.2 で、
+# **第3オクテットが 0 だったから通っていただけ**だった。兄弟が 172.18.1.x を引けば内部通信が落ちる。
+
+@test "緑: インターフェースの実 CIDR（/16）を許可する。/24 に丸めない" {
+	run fw
+	[ "$status" -eq 0 ]
+	grep -qF "iptables -A OUTPUT -d 172.18.0.0/16 -j ACCEPT" "$STUB_LOG"
+	grep -qF "iptables -A INPUT -s 172.18.0.0/16 -j ACCEPT" "$STUB_LOG"
+	# 旧実装（ゲートウェイから /24 を推測）へ戻したら、この行が出て赤になる
+	! grep -q '/24' "$STUB_LOG"
+}
+
+@test "緑: /24 のネットワークならその /24 を許可する（値を決め打ちしていない）" {
+	export STUB_NET="10.5.3.0/24"
+	export STUB_ADDR="10.5.3.7/24"
+	run fw
+	[ "$status" -eq 0 ]
+	grep -qF "iptables -A OUTPUT -d 10.5.3.0/24 -j ACCEPT" "$STUB_LOG"
+	! grep -q '172\.18' "$STUB_LOG"
+}
+
+@test "緑: scope link 経路が無い環境ではアドレスの prefix から求める" {
+	export STUB_LINK_ROUTE=""          # カーネル経路が引けない環境を模す
+	export STUB_ADDR="192.168.240.9/20"
+	run fw
+	[ "$status" -eq 0 ]
+	grep -qF "iptables -A OUTPUT -d 192.168.240.9/20 -j ACCEPT" "$STUB_LOG"
+}
+
+@test "赤: ネットワーク CIDR を特定できなければ狭い値で代用せず異常終了する" {
+	export STUB_LINK_ROUTE=""
+	export STUB_ADDR=""                # アドレスも取れない
+	run fw
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"ネットワーク CIDR を特定できません"* ]]
+	grep -q "^status=failed" "$STATUS"
+}
+
+@test "赤: デフォルトルートが無ければ異常終了する（従来どおり）" {
+	export STUB_DEFAULT_ROUTE=""
+	run fw
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"デフォルトゲートウェイを特定できません"* ]]
+	grep -q "^status=failed" "$STATUS"
 }
 
 # ---- 赤: 遮断を解除しようとする側（adversarial） ----
