@@ -275,6 +275,31 @@ Claude Code はユーザースコープ `settings.json` を書き戻すことが
 ボリューム名が固定なので、**2回目以降および他プロジェクトからの初回起動では起きない**
 （移設は `.credentials.json` の有無で1回だけガードされ、以降は populate 済みの状態を共有する）。
 
+### 名前付きボリュームの永続性を実証した（2026-08-06・2回目の Rebuild）
+
+**2回目の Rebuild では再認証を求められなかった。** 上の予測どおりである。
+`ai-dev-claude-state` が Rebuild をまたいで保持されることを、内部状態で確定した。
+
+| 観測 | 値 | 意味 |
+|---|---|---|
+| コンテナ起動時刻 | `2026-08-06 07:20:15` | この Rebuild で作り直された |
+| `.claude-state/.claude.json` の `firstStartTime` | `2026-08-06T07:05:57Z` | **コンテナ起動より前**＝前コンテナのオンボーディング記録がそのまま残っている |
+| 同 `numStartups` | 1 → **2** | 新規作成ではなく既存ファイルへの追記。前回は `numStartups=1` だった |
+| 同 `oauthAccount` / `hasCompletedOnboarding` | あり | ログイン画面へ落ちなかった理由 |
+| `.claude-state/.credentials.json` の mtime | `07:06:52`（起動前） | 書き直されていない |
+| `.claude-state/projects/` の mtime | `7/26` | 初回移設時の `cp -a` のまま |
+
+**移設処理は再実行されなかった。** ガードは `$CLAUDE_CONFIG_DIR/.credentials.json` の有無で、
+ボリュームに残っている以上 `cp -a` の分岐に入らない（`setup-claude-config.sh` の一度きりの移設）。
+`.credentials.json` と `projects/` の mtime が起動前のままであることがその裏取りである。
+なお移設元だった共通 `.claude` 側の `.credentials.json` は既に手動削除済みで、
+ガードの第2条件も成立しない——移設はもう二度と走らない。
+
+**実証されたのは「Rebuild をまたぐ」ことまでである。** `docker volume rm` や Docker Desktop の
+整理でボリュームが消える経路は依然として検査の外にあり、そこはマウント種別からの推定でしかない
+（`verify-isolation.sh` の検査 6/7 が見ているのは「独立したマウントであること」）。
+消えた場合の徴候は初回と同じ——移設メッセージが再び出て、ログイン画面へ落ちる。
+
 ### 検査 6/7 の判定を「有無」から「中身」へ直した（2026-08-06）
 
 当初 `$HOME/.claude.json` は**存在するだけで赤**にしていたが、これは緑にできない検査だった。
@@ -324,16 +349,6 @@ Claude Code はユーザースコープ `settings.json` を書き戻すことが
   Rebuild で消え続ける。雛形への展開は `new-service.sh` の配布リストと `_base` の
   Dockerfile 複製対も動かすため、別の変更として行う。監査の検査(13)も現時点では
   基盤リポの `devcontainer.json` / `Dockerfile` のみを見ている。
-
-- **名前付きボリュームが Rebuild をまたいで残ることは未検証（2026-08-06）。**
-  2026-08-06 時点で確認できたのは「認証情報と `.claude.json` がボリューム側に置かれている」
-  ことまでで、**永続性そのものは観測できていない**。この Rebuild では `ai-dev-claude-state` が
-  空＝新規作成だった（だから移設が走った）ため、まだ一度も Rebuild をまたいでいない。
-  `verify-isolation.sh` の検査 6/7 が見ているのも「独立したマウントであること」であり、
-  マウント種別から永続性を推定しているにすぎない——ボリュームが `docker volume rm` や
-  Docker Desktop の整理で消える経路は検査の外にある。**次の Rebuild で再認証を求められ
-  なければ実証される。** 求められた場合は、ボリュームが作り直されていないか（＝移設メッセージが
-  再び出ていないか）を最初に見る。
 
 - **生成物（product-web / product-static）での許可ドメイン実測は未実施。**
   許可リストの実測は基盤リポの devcontainer でのみ行った（2026-08-04・記録は
