@@ -102,14 +102,10 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
 - `profiles/_base/.github/workflows/ci.yml` を reusable workflow 呼び出しに置き換える
 - ADR-003 / ADR-005 に続き、CI 方式に関する過去の分岐を解消する
 
-## 未解決
+## 検証（2026-08-06 に完了）
 
-- ~~ブランチ保護と必須ステータスチェックの設定状況が未確認~~ → **2026-08-06: 設定内容を確定して提示済み**
-  （`docs/audit/branch-protection-20260806.md`）。**設定作業そのものは未実施**——コンテナへ渡している
-  PAT に `Administration` を渡していないため、画面での操作を人が行う。
-  基盤リポは「main 直 push を許すか」を決めないと必須チェックを入れられない（同ファイル §5）。
-- reusable workflow を GitHub 上で実行しての検証は `.github/workflows/service-ci-selftest.yml`
-  （`workflow_dispatch` 限定・2026-08-06 追加）で行う。**2回実行済み**（計画書 §8-2・§8-3）。
+reusable workflow を GitHub 上で実行しての検証は `.github/workflows/service-ci-selftest.yml`
+（`workflow_dispatch` 限定・常設）で行う。**5回実行して測定項目をすべて閉じた**（計画書 §8-1〜§8-7）。
   - **チェック名は `<呼び出し側のジョブ id> / <reusable 側のジョブ名>`** と確定
     （実測: `selftest / gates`）。雛形どおり `ci:` で呼べば `ci / gates` になる
   - **skip されたジョブも check run は作られ、conclusion が `skipped` になる**（永久ペンディングにはならない）
@@ -124,6 +120,26 @@ Composite Action と Reusable Workflow は排他ではなく抽象度が違う�
     **呼び出し側**のワークフローと ref を返すだけで共通基盤の版は分からない。
     → **`foundation-ref` の明示を確定**とし、`uses:` との一致を**検査(17)で機械強制**する
     （`common/scripts/check-foundation-ref.sh`。未指定も不一致も赤）
+  - **明示すれば正しい版で成立する**（第5回・実測）。既定と違う ref（過去コミット）を渡すと
+    その ref で checkout され、ゲートまで緑になった。**既定ブランチと区別できる形**で確認済み
   - **配る前に不具合を1件検出した**: App 未設定時に `token:` へ空文字が入り checkout が落ちる。
     サービス側が移行すれば全リポジトリで再現する形だった（修正済み）。
     **手順6 を「一時的な検証」ではなく常設の口として残す根拠がここで実証された**
+
+## 未解決
+
+**測定に由来するものは残っていない。以下はすべて実施待ちの作業。**
+
+1. **手順10**: `profiles/_base/.github/workflows/ci.yml` を reusable 呼び出しへ置換する
+   （`foundation-ref` を `uses:` と同じ値で書くこと。検査(17)が一致を見る）
+2. **手順13**: `v2` を切る。**手順10 の後**（古い形の雛形が v2 に入ると生成物と食い違う）
+3. **既存2プロジェクトの移行**（手順7・9）。前提条件は結果節のとおり——
+   静的サイト側は Makefile のスタックゲート実装、動的アプリ側は devcontainer の compose 化
+4. **手順11・12**: `service-templates/` と composite action 3本の撤去。**3 の完了が前提**
+5. **ブランチ保護の設定**（`docs/audit/branch-protection-20260806.md`）。
+   PAT に `Administration` を渡していないため、画面での操作を人が行う。
+   基盤・HP の2本が対象で、`sumai-desk` は PR でテストが走らないため保留（同 §5-1）
+6. （運用に影響しない未確認）`job_workflow_*` が空になる条件——同一リポジトリ参照か
+   `workflow_dispatch` 起点か。**サービスから PR 契機で呼んだときに分かる**。
+   どちらであっても `foundation-ref` の明示で正しく動くため、判明したら二重記述をやめるかを
+   判断すればよい（それまでは明示が必須）
