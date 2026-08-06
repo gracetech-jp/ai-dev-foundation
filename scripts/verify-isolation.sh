@@ -194,9 +194,20 @@ else
 	done
 
 	# 逆に、git 作業ツリー側と $HOME 直下には残っていないこと。
+	#
+	# $HOME/.claude.json は**存在するだけでは異常ではない**（2026-08-06 実測で訂正）。
+	# ネイティブインストーラ（Dockerfile の install.sh）が自動更新の台帳として置くもので、
+	# イメージに焼かれているため削除しても Rebuild のたびに戻る——存在で落とす検査は
+	# 二度と緑にならない。実測した中身は installMethod / autoUpdates / machineID だけで、
+	# oauthAccount も hasCompletedOnboarding も持たない（config dir 側とは machineID も別）。
+	# 防ぎたいのは「アカウント情報が overlay 上の $HOME に落ちて Rebuild で消える」ことなので、
+	# 判定するのはファイルの有無ではなく**アカウント情報を抱えているか**にする。
 	leftover=""
 	[ -e "$COMMON_CLAUDE_DIR/.credentials.json" ] && leftover="$leftover $COMMON_CLAUDE_DIR/.credentials.json"
-	[ -e "$HOME/.claude.json" ] && leftover="$leftover $HOME/.claude.json"
+	if [ -f "$HOME/.claude.json" ] \
+		&& grep -qE '"(oauthAccount|hasCompletedOnboarding)"' "$HOME/.claude.json" 2>/dev/null; then
+		leftover="$leftover $HOME/.claude.json"
+	fi
 	if [ -z "$leftover" ]; then
 		ok "git 作業ツリーと \$HOME 直下に認証情報が残っていない"
 	else

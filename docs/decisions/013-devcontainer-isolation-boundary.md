@@ -259,6 +259,35 @@ Claude Code はユーザースコープ `settings.json` を書き戻すことが
 `setup-claude-config.sh` は起動のたびに張り直すので次回起動で自己修復するが、そのセッション中の
 変更は失われる。`verify-isolation.sh` の検査 6/7 が symlink の切断を検出する。
 
+### 導入時の Rebuild は一度だけ再認証になる（2026-08-06 実測）
+
+この変更を入れた Rebuild では、移設が成功しても**ログインし直しになる**。移設は
+`.credentials.json` を運べるが、`.claude.json` は**移設元が存在しない**ためである——旧
+`.claude.json` は `$HOME` 直下＝overlay 上にあり、`postStartCommand` が走る前に Rebuild で
+消えている。共通 `.claude` 側にも `.claude.json` は無い。Claude Code は**トークンが有効でも
+`hasCompletedOnboarding` / `oauthAccount` が無ければオンボーディングへ入る**ため、上の「直した
+不具合」と同じ画面が一度だけ再現する。移設リストに `.claude.json` を足しても救えない。
+
+実測（2026-08-06 の Rebuild）: 移設は走った（`.claude-state/projects/` の mtime が `cp -a` で
+7/26 のまま、`history.jsonl` も引き継がれた）。そのうえで `.claude-state/.claude.json` は
+`numStartups=1` / `firstStartTime=` コンテナ起動時刻——新規オンボーディングの記録である。
+
+ボリューム名が固定なので、**2回目以降および他プロジェクトからの初回起動では起きない**
+（移設は `.credentials.json` の有無で1回だけガードされ、以降は populate 済みの状態を共有する）。
+
+### 検査 6/7 の判定を「有無」から「中身」へ直した（2026-08-06）
+
+当初 `$HOME/.claude.json` は**存在するだけで赤**にしていたが、これは緑にできない検査だった。
+この実体はネイティブインストーラ（Dockerfile の `install.sh`）が自動更新の台帳として置くもので
+**イメージに焼かれており、削除しても Rebuild のたびに戻る**。実測した中身は `installMethod` /
+`autoUpdates` / `machineID` だけで、`oauthAccount` も `hasCompletedOnboarding` も持たない
+（config ディレクトリ側とは `machineID` も別）。
+
+防ぎたい失敗モードは「**アカウント情報が overlay 上の `$HOME` に落ちて Rebuild で消える**」で
+あって、ファイルがそこに在ること自体ではない。判定を `oauthAccount` /
+`hasCompletedOnboarding` を抱えているかに変えた。共通 `.claude` 側の `.credentials.json` は
+再生成されない本物の残置物なので、従来どおり存在で赤にする。
+
 ## 結果
 
 - `profiles/_base/.devcontainer/` に `init-firewall.sh` を追加する
@@ -295,6 +324,16 @@ Claude Code はユーザースコープ `settings.json` を書き戻すことが
   Rebuild で消え続ける。雛形への展開は `new-service.sh` の配布リストと `_base` の
   Dockerfile 複製対も動かすため、別の変更として行う。監査の検査(13)も現時点では
   基盤リポの `devcontainer.json` / `Dockerfile` のみを見ている。
+
+- **名前付きボリュームが Rebuild をまたいで残ることは未検証（2026-08-06）。**
+  2026-08-06 時点で確認できたのは「認証情報と `.claude.json` がボリューム側に置かれている」
+  ことまでで、**永続性そのものは観測できていない**。この Rebuild では `ai-dev-claude-state` が
+  空＝新規作成だった（だから移設が走った）ため、まだ一度も Rebuild をまたいでいない。
+  `verify-isolation.sh` の検査 6/7 が見ているのも「独立したマウントであること」であり、
+  マウント種別から永続性を推定しているにすぎない——ボリュームが `docker volume rm` や
+  Docker Desktop の整理で消える経路は検査の外にある。**次の Rebuild で再認証を求められ
+  なければ実証される。** 求められた場合は、ボリュームが作り直されていないか（＝移設メッセージが
+  再び出ていないか）を最初に見る。
 
 - **生成物（product-web / product-static）での許可ドメイン実測は未実施。**
   許可リストの実測は基盤リポの devcontainer でのみ行った（2026-08-04・記録は
