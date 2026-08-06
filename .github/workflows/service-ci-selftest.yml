@@ -41,6 +41,12 @@ name: service-ci-selftest
 
 on:
   workflow_dispatch:
+    inputs:
+      foundation-ref:
+        description: 共通基盤の checkout に使う ref（既定 main。別コミットを渡すと ref が効いているか実測できる）
+        type: string
+        required: false
+        default: main
 
 jobs:
   # ジョブ id を `selftest` にしてある（サービス側の雛形は `ci`）。**わざと違える**——
@@ -61,5 +67,7 @@ jobs:
       # （計画書 §8-5）。指定しないと共通基盤の checkout が**既定ブランチへ落ちる**——
       # `@v1` で呼んでも main のコードでゲートが回るということで、バージョン固定が無効になる。
       # 呼び出し側の `uses: ...@main` と**同じ ref をここにも書く**。二重記述だが、
-      # 黙って別の版で回るよりはよい（一致は将来の監査で機械検証する余地がある）。
-      foundation-ref: main
+      # 黙って別の版で回るよりはよい（一致は監査の検査(17)が機械検証する）。
+      # 既定は main。dispatch 時に別コミットを渡せば「ref が実際に効くか」を実測できる
+      # （`gh workflow run ... -f foundation-ref=<sha>`）。検査(17)は既定値と `uses:` の一致を見る。
+      foundation-ref: ${{ inputs.foundation-ref }}

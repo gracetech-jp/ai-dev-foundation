@@ -185,6 +185,7 @@ audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
 		      project-name: dummy
 		      common-gates: "audit-all req-coverage tier-tripwire"
 		      stack-gates: "lint test coverage audit-deps"
+		      foundation-ref: v2   # uses: と同じ ref（検査(17)。省くと既定ブランチへ落ちる）
 		  secret-scan:
 		    runs-on: ubuntu-latest
 		    steps:
@@ -575,6 +576,14 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	YAML
 	run audit
 	[ "$status" -eq 0 ]
+}
+
+@test "赤: selftest の foundation-ref が uses とずれると検査(17)が fail する（配線されていること）" {
+	make_sandbox
+	sed -i 's|service-ci\.yml@main|service-ci.yml@v9|' "$SB/.github/workflows/service-ci-selftest.yml"
+	run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"ref がずれています"* ]]
 }
 
 @test "赤: 必須チェック宣言が消えると検査(16)が fail する（配線されていること）" {

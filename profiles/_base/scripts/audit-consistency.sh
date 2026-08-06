@@ -121,20 +121,33 @@ echo "[audit] (6) 必須ステータスチェック宣言の検査..."
 # 「設定できる形になっていること」（宣言した名前が実在し・PR で走り・重複しない）は検証できる。
 # 実装は共通側に1本だけ置く（ADR-010: 複製しない）。解決できないときは黙って飛ばさず理由を出す。
 rc_dir="$ROOT"
-rc_script=""
+rc_dir_found=""
 while [ "$rc_dir" != "/" ]; do
 	if [ -f "$rc_dir/.ai-dev-foundation-root" ]; then
-		rc_script="$rc_dir/common/scripts/check-required-checks.sh"
+		rc_dir_found="$rc_dir"
 		break
 	fi
 	rc_dir="$(dirname "$rc_dir")"
 done
-if [ -z "$rc_script" ]; then
+rc_script="${rc_dir_found:+$rc_dir_found/common/scripts/check-required-checks.sh}"
+if [ -z "$rc_dir_found" ]; then
 	echo "  ℹ 共通基盤が見つからないため必須チェック宣言の検査はスキップしました（CI の単独チェックアウト等）"
 elif [ ! -r "$rc_script" ]; then
 	report "共通基盤は見つかりましたが $rc_script が読めません（共通ゲートが配られていません）"
 else
 	bash "$rc_script" "$ROOT" || fail=1
+fi
+
+echo "[audit] (7) 共通基盤の ref 二重記述の一致検査..."
+# reusable workflow を `uses: ...@X` で呼ぶなら `foundation-ref: X` を同じ値で渡す。
+# 未指定・不一致だと**別の版の共通基盤でゲートが回る**のに緑になる（症状が出ない）。
+fr_script="${rc_dir_found:+$rc_dir_found/common/scripts/check-foundation-ref.sh}"
+if [ -z "$rc_dir_found" ]; then
+	echo "  ℹ 共通基盤が見つからないため ref 一致の検査はスキップしました（同上）"
+elif [ ! -r "$fr_script" ]; then
+	report "共通基盤は見つかりましたが $fr_script が読めません（共通ゲートが配られていません）"
+else
+	bash "$fr_script" "$ROOT" || fail=1
 fi
 
 echo ""

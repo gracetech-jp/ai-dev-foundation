@@ -632,6 +632,12 @@ echo "[audit] (16) 必須ステータスチェック宣言の検査..."
 # 呼ぶ（ADR-010: 実体は1つ・参照する）。検査の中身と限界は check-required-checks.sh の冒頭に書いた。
 bash "$ROOT/common/scripts/check-required-checks.sh" "$ROOT" || fail=1
 
+echo "[audit] (17) 共通基盤の ref 二重記述の一致検査..."
+# `uses: ...@X` と `foundation-ref: Y` がずれても**赤くならない**（ゲートは走って緑になり、
+# 違うのは「どの版のゲートで検査したか」だけ）。症状の出ない食い違いなので機械で見る。
+# 二重に書く羽目になった経緯は check-foundation-ref.sh の冒頭と計画書 §8-5。
+bash "$ROOT/common/scripts/check-foundation-ref.sh" "$ROOT" || fail=1
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"
