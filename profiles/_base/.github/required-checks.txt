@@ -10,9 +10,8 @@
 # - **push でしか走らないジョブを書かないこと。** 必須チェックは PR の head に対して
 #   走ったときだけマージ判定に現れる。push 専用のジョブを必須にすると PR が永久に止まり、
 #   逆に「PR では走らないゲート」を必須のつもりで並べると、緑に見えて何も守らない
-# - reusable workflow（ADR-011）へ移行したら `ci / gates` の形へ書き換える
-#   （`ci` は自分の ci.yml が置く呼び出し側のジョブ id）
+# - 名前は `<ci.yml のジョブ id> / <reusable 側のジョブ名>`。ジョブ id を変えたらここも直す
+# - `ci / gates-db` は入れない。DB を使わない構成では skip され、skip の扱いに依存したくない
 
-gates
-audit
-secret-scan
+ci / gates
+ci / secret-scan

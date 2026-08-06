@@ -130,9 +130,12 @@ reusable workflow を GitHub 上で実行しての検証は `.github/workflows/s
 
 **測定に由来するものは残っていない。以下はすべて実施待ちの作業。**
 
-1. **手順10**: `profiles/_base/.github/workflows/ci.yml` を reusable 呼び出しへ置換する
-   （`foundation-ref` を `uses:` と同じ値で書くこと。検査(17)が一致を見る）
-2. **手順13**: `v2` を切る。**手順10 の後**（古い形の雛形が v2 に入ると生成物と食い違う）
+1. ~~**手順10**~~ → **2026-08-06 実施済み**。`profiles/_base/.github/workflows/ci.yml` を
+   reusable 呼び出し（`@v2` + `foundation-ref: v2`）へ置換し、`new-service.sh` が
+   `project-name` を置換して配るようにした。宣言も `ci / gates` / `ci / secret-scan` へ更新
+2. **手順13**: `v2` を切る。**手順10 を push したら続けて切る**——それまでに生成した
+   サービスは CI が `workflow not found` で落ちる（`new-service.sh` が警告を出す）。
+   タグは名前で参照され解決は実行時なので、手順10 と鶏卵にはならない（計画書 §7 の 13）
 3. **既存2プロジェクトの移行**（手順7・9）。前提条件は結果節のとおり——
    静的サイト側は Makefile のスタックゲート実装、動的アプリ側は devcontainer の compose 化
 4. **手順11・12**: `service-templates/` と composite action 3本の撤去。**3 の完了が前提**

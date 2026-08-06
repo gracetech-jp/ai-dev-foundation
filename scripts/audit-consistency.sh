@@ -393,7 +393,9 @@ done
 # NEW_FORM: 参照方式へ**意図的に書き換えた**雛形。_base 側は旧方式のまま（new-service.sh が
 # まだ _base を読むため）で、両者が一致しないのが正しい状態。追加時は理由を1行残すこと。
 # フェーズ5で _base を撤去した時点でこの除外ごと消える。
-NEW_FORM_RE='^(Makefile|\.devcontainer/devcontainer\.json|\.github/workflows/ci\.yml|claude/settings\.json)$'
+# .github/required-checks.txt: _base は reusable 呼び出しへ移行し宣言が `ci / gates` の形になった。
+# service-templates は旧方式（独立ジョブ）のまま残すので、一致しないのが正しい（2026-08-06・手順10）。
+NEW_FORM_RE='^(Makefile|\.devcontainer/devcontainer\.json|\.github/workflows/ci\.yml|\.github/required-checks\.txt|claude/settings\.json)$'
 while IFS= read -r rel; do
 	[ -n "$rel" ] || continue
 	printf '%s' "$rel" | grep -qE "$NEW_FORM_RE" && continue

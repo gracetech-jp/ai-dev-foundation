@@ -196,13 +196,34 @@ make_sandbox() {
 	[[ "$output" == *"required-checks.txt がありません"* ]]
 }
 
-@test "赤: 生成物の CI ジョブ名を変えて宣言を直し忘れると audit-all が赤" {
+@test "赤: 生成物の CI ジョブ id を変えて宣言を直し忘れると audit-all が赤" {
+	# チェック名は `<ジョブ id> / <reusable 側のジョブ名>`。id を変えると必須チェックが
+	# 報告されなくなり PR が永久に止まる。宣言との不一致で先に気づけることを固定する。
 	run ns svd7 --profile product-static
 	[ "$status" -eq 0 ]
-	sed -i 's/^  audit:/  audit-renamed:/' "$PROJ/svd7/.github/workflows/ci.yml"
+	sed -i 's/^  ci:/  gates-entry:/' "$PROJ/svd7/.github/workflows/ci.yml"
 	run make -C "$PROJ/svd7" audit-all
 	[ "$status" -ne 0 ]
-	[[ "$output" == *"'audit' がワークフローにありません"* ]]
+	[[ "$output" == *"'ci' がワークフローにありません"* ]]
+}
+
+@test "赤: 生成物の foundation-ref を uses とずらすと audit-all が赤" {
+	# ずれても CI は緑になる（違うのは「どの版のゲートで検査したか」だけ）ため機械で見る。
+	run ns svd8 --profile product-static
+	[ "$status" -eq 0 ]
+	sed -i 's/^      foundation-ref: v2/      foundation-ref: v1/' "$PROJ/svd8/.github/workflows/ci.yml"
+	run make -C "$PROJ/svd8" audit-all
+	[ "$status" -ne 0 ]
+	[[ "$output" == *"ref がずれています"* ]]
+}
+
+@test "緑: 生成物の ci.yml が reusable を呼び、project-name が置換されている" {
+	run ns svd9 --profile product-static
+	[ "$status" -eq 0 ]
+	F="$PROJ/svd9/.github/workflows/ci.yml"
+	grep -q 'uses: gracetech-jp/ai-dev-foundation/.github/workflows/service-ci.yml@v2' "$F"
+	grep -q 'project-name: svd9' "$F"
+	! grep -q 'SERVICE_NAME' "$F"
 }
 
 @test "緑: product-static 生成物に .tier-tripwire-none が同梱されプレースホルダ置換も効く" {

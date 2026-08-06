@@ -137,11 +137,22 @@ cp "$BASE/.coverage-floor" "${TARGET}/.coverage-floor"  # フロア初期値(サ
 cp "$BASE/.req-coverage-baseline" "${TARGET}/.req-coverage-baseline"  # 未カバー要件の移行猶予(空)
 cp "$BASE/.tier-tripwire-allow" "${TARGET}/.tier-tripwire-allow"      # トリップワイヤ例外allowlist(空)
 chmod +x "${TARGET}/scripts/audit-consistency.sh"
-# CIワークフロー（スタック非依存の多段ゲート。詳細: docs/rules/quality-gates.md §4）
-cp "$BASE/.github/workflows/ci.yml" "${TARGET}/.github/workflows/ci.yml"
+# CIワークフロー（共通ゲートは基盤の reusable workflow を呼ぶ。詳細: docs/rules/quality-gates.md §4）。
+# project-name に自分のディレクトリ名が要るため、他の雛形と同じくプレースホルダを置換して配る。
+sed "s/SERVICE_NAME/${SERVICE_NAME}/g" \
+	"$BASE/.github/workflows/ci.yml" > "${TARGET}/.github/workflows/ci.yml"
 # 必須ステータスチェックの宣言。ブランチ保護の設定は GitHub 側にあってリポジトリからは見えないため、
 # 「何を必須にすべきか」をここに残して監査対象にする（配らないと生成直後の監査が赤になる）
 cp "$BASE/.github/required-checks.txt" "${TARGET}/.github/required-checks.txt"
+# 生成物の CI は共通基盤のタグを参照する。**タグが未作成だと CI が「workflow not found」で落ちる**
+# （静かに壊れるのではなく即エラーになるが、原因が生成物側に見えて分かりにくい）。
+# 監査は文字列の一致しか見られない（ネットワークを使わない設計）ので、ここで実在を確かめて知らせる。
+# 致命傷にはしない——タグを切る前に雛形を試す使い方（テスト・検証）を塞ぐ必要はない。
+ci_tag="$(sed -n 's|.*service-ci\.yml@\([^[:space:]]*\).*|\1|p' "$BASE/.github/workflows/ci.yml" | head -1)"
+if [ -n "$ci_tag" ] && ! git -C "$ROOT" rev-parse --verify --quiet "refs/tags/${ci_tag}" >/dev/null 2>&1; then
+	echo "⚠ 生成物の CI は共通基盤の '${ci_tag}' を参照しますが、このリポジトリに '${ci_tag}' タグがありません。" >&2
+	echo "   タグを切るまで生成物の CI は 'workflow not found' で失敗します（ADR-011 手順13）。" >&2
+fi
 
 # PROJECT.mdをテンプレートからコピー
 cp "$BASE/PROJECT.md.template" "${TARGET}/PROJECT.md"
