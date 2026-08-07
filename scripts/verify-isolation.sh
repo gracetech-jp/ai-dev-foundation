@@ -38,7 +38,7 @@ ok()   { echo "  ✅ $1"; pass=$((pass + 1)); }
 ng()   { echo "  ❌ $1"; fail=$((fail + 1)); }
 head2() { echo ""; echo "[$1] $2"; }
 
-head2 1/7 "init-firewall.sh が実際に走ったか"
+head2 1/8 "init-firewall.sh が実際に走ったか"
 if [ ! -f "$STATUS_FILE" ]; then
 	ng "$STATUS_FILE がありません（postStartCommand が走っていない可能性）"
 	echo "     → devcontainer.json の postStartCommand を確認し、コンテナを再起動する"
@@ -53,7 +53,7 @@ else
 	esac
 fi
 
-head2 2/7 "既定ポリシーが DROP になっているか"
+head2 2/8 "既定ポリシーが DROP になっているか"
 # 非 root ではポリシーを読めないため、スクリプトが記録した適用内容で確認する。
 # 実際の振る舞いは 3/5 が受け持つ（記録と実測の両方が揃って初めて信頼できる）。
 if [ -f "$STATUS_FILE" ] && grep -q 'policy=DROP' "$STATUS_FILE"; then
@@ -62,7 +62,7 @@ else
 	ng "DROP を適用した記録がない（1/5 が失敗しているならそちらが原因）"
 fi
 
-head2 3/7 "許可リスト外への通信が実際に遮断されるか"
+head2 3/8 "許可リスト外への通信が実際に遮断されるか"
 if curl --connect-timeout 5 -s -o /dev/null "$BLOCKED_URL" 2>/dev/null; then
 	ng "$BLOCKED_URL へ到達できてしまいました（遮断が効いていません）"
 else
@@ -75,7 +75,7 @@ else
 	echo "     → コンテナを再起動すると名前解決からやり直す"
 fi
 
-head2 4/7 "sudo が init-firewall.sh 以外で使えないこと"
+head2 4/8 "sudo が init-firewall.sh 以外で使えないこと"
 if id -nG | tr ' ' '\n' | grep -qx sudo; then
 	ng "node が sudo グループに属しています（gpasswd -d node sudo が効いていない）"
 else
@@ -94,7 +94,7 @@ else
 	ng "init-firewall.sh を sudo で実行できません（次回起動時に遮断が適用されません）"
 fi
 
-head2 5/7 "GH_TOKEN のスコープが実際に効いているか"
+head2 5/8 "GH_TOKEN のスコープが実際に効いているか"
 # 許可リストへ github.com / api.github.com を入れた時点で、この境界の実効範囲を決めるのは
 # 許可リストではなく**コンテナへ渡すトークンのスコープ**になった（ADR-013 の判断変更）。
 # したがってスコープも実測の対象に含める。
@@ -163,7 +163,7 @@ else
 	esac
 fi
 
-head2 6/7 "認証情報が git 作業ツリーの外に置かれ、Rebuild をまたいで残るか"
+head2 6/8 "認証情報が git 作業ツリーの外に置かれ、Rebuild をまたいで残るか"
 # ADR-013（2026-08-06）。Claude Code は認証情報と .claude.json を config ディレクトリへ書く。
 # 共通 .claude は基盤リポの bind＝git 作業ツリーなので、そこを config ディレクトリにすると
 # 認証情報が作業ツリーに入る。設定ファイルが正しいことは audit の検査(13)が見るので、
@@ -229,7 +229,7 @@ else
 	done
 fi
 
-head2 7/7 "品質ゲート（make audit-all / make test）"
+head2 7/8 "品質ゲート（make audit-all / make test）"
 if make -C /workspace audit-all >/dev/null 2>&1; then
 	ok "make audit-all 緑"
 else
@@ -241,6 +241,22 @@ else
 	ng "make test 赤（詳細: make test）"
 	printf '%s\n' "$test_out" | grep -E '^not ok' | sed 's/^/     /'
 fi
+
+head2 8/8 "遮断してはいけない内部通信が通ること"
+# 3/8 と方向が逆の検査。締めすぎもまた事故であり、遮断側だけを測っていると
+# 「全部止めても緑」になる。到達先はプロジェクト固有なので共通側には書けず、
+# .devcontainer/internal-targets.txt の宣言から読む（判定ロジックだけが共通・ADR-010）。
+#
+# **基盤リポは compose 方式ではないため、ここは常に未判定になる。** 宣言ファイルを持たないので
+# ℹ が出るだけで、pass にも fail にも数えない。統合の実証は compose 方式のプロジェクト側でしか
+# 得られない——できないことを緑として数えない（ADR-013「兄弟サービス到達の検査」）。
+reach_out="$(bash /workspace/common/scripts/check-internal-reachability.sh /workspace 2>&1)"
+reach_rc=$?
+printf '%s\n' "$reach_out"
+case "$reach_rc" in
+	0) printf '%s' "$reach_out" | grep -q '未判定' || ok "宣言された内部到達先へすべて到達できる" ;;
+	*) ng "内部到達性の検査が失敗しました（終了コード $reach_rc）" ;;
+esac
 
 echo ""
 echo "=========================================="
