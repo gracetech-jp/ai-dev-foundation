@@ -350,6 +350,24 @@ Claude Code はユーザースコープ `settings.json` を書き戻すことが
   Dockerfile 複製対も動かすため、別の変更として行う。監査の検査(13)も現時点では
   基盤リポの `devcontainer.json` / `Dockerfile` のみを見ている。
 
+- **兄弟サービス到達の検査は共通化していない（2026-08-07・判断済み。着手待ち）。**
+  compose 方式では、ファイアウォールが**遮断してはいけない通信**（兄弟コンテナへの内部通信）まで
+  止めると `make test` も E2E も全滅する。sumai-desk はこれを verify-isolation.sh の検査4本で
+  実測している。共通化すべきだが、**sumai-desk 側の見立て「基盤の verify-isolation.sh に
+  到達先の変数を足す」は成立しない**——基盤の `scripts/verify-isolation.sh` は
+  `new-service.sh` の配布対象になく、sumai-desk のものは**参照ではなく手の複製**である
+  （実体は基盤と sumai-desk の2箇所のみ。2026-08-07 実測）。基盤側に変数を足しても
+  プロジェクトでは1行も実行されない。パラメータの見立ては正しく、付ける先が違う。
+  還元するなら形は `check-required-checks.sh` / `check-git-hooks.sh` と同じ——**判定ロジックを
+  共通側に1本置き、到達先はプロジェクト側の宣言ファイルから読む**（宣言が無ければ未判定）。
+  **基盤自身は compose 方式ではないので常に未判定になる。** ロジックの空撃ちは bats
+  （到達するポート／到達しないポート）で潰せるが、「compose ネットワークで実際に兄弟へ届くこと」を
+  基盤で緑にすることはできない。**できないことを検査に混ぜない**（check-required-checks.sh が
+  GitHub の実設定を見に行かないのと同じ姿勢）。統合の実証は sumai-desk 側の実行で得る。
+  今回着手しないのは、唯一の呼び出し元が sumai-desk であり、共通側だけ先に置くと
+  **呼び出し元ゼロの共通資産**——この基盤が繰り返し潰してきた「作動していないゲート」——に
+  なるため。共通側と sumai-desk 側を動かす1つの変更として行う。
+
 - **生成物（product-web / product-static）での許可ドメイン実測は未実施。**
   許可リストの実測は基盤リポの devcontainer でのみ行った（2026-08-04・記録は
   `docs/audit/adr013-egress-verification-20260804.md`）。生成物は `uv` / `pnpm` を使うため
