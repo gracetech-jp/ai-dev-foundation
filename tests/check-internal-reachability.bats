@@ -143,6 +143,16 @@ run_sut() { run bash "$SUT" "$P"; }
 	[ "$status" -eq 2 ]
 }
 
+@test "exit 2: ポートが桁あふれしていても書式エラーとして落ちる（実行時エラーにしない）" {
+	# 64bit を超える数値を [ -lt ] へ渡すと bash が「integer expression expected」で落ちる。
+	# 宣言の誤りは exit 2 で報告されるべきで、シェルの実行時エラーに化けてはならない。
+	printf 'backend:99999999999999999999\n' > "$DECL"
+	run_sut
+	[ "$status" -eq 2 ]
+	[[ "$output" == *"範囲外"* ]]
+	[[ "$output" != *"integer expression"* ]]
+}
+
 @test "exit 2: スキームだけでホスト名が無い" {
 	printf 'http:///health\n' > "$DECL"
 	run_sut

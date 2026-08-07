@@ -75,8 +75,11 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 				|| die "$DECL_REL:$lineno ホスト名が不正です: $raw"
 			printf '%s' "$port" | grep -qE '^[0-9]+$' \
 				|| die "$DECL_REL:$lineno ポートが数値ではありません: $raw"
-			[ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
-				|| die "$DECL_REL:$lineno ポートが範囲外です: $raw"
+			# 桁数を先に見るのは、64bit を超える数値を [ -lt ] へ渡すと bash が
+			# 「integer expression expected」で落ち、書式エラーではなく実行時エラーになるため。
+			if [ "${#port}" -gt 5 ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+				die "$DECL_REL:$lineno ポートが範囲外です: $raw"
+			fi
 			;;
 		*)
 			die "$DECL_REL:$lineno 書式が不正です（http(s):// か host:port）: $raw"
