@@ -68,8 +68,10 @@ audit-deps:
 
 # git フック（pre-push・commit-msg）をローカルに導入する。
 # 基盤リポも各プロジェクトと同じ形で common/scripts/ を参照する（複製を持たない。ADR-010）。
+# 相対リンク（-r）と --git-common-dir の理由は common/make/contract.mk の同名ターゲットに書いた。
+# 基盤リポ自身も 2026-08-07 まで絶対リンクで、ホストからは1回も走らない状態だった。
 install-hooks:
-	@hooks="$$(git rev-parse --git-dir)/hooks"; \
-	 ln -sf "$(CURDIR)/common/scripts/pre-push"   "$$hooks/pre-push"; \
-	 ln -sf "$(CURDIR)/common/scripts/commit-msg" "$$hooks/commit-msg"; \
-	 echo "[install-hooks] ✅ pre-push / commit-msg を common/scripts/ へリンクしました"
+	@hooks="$$(git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir)/hooks"; \
+	 ln -sfr "$(CURDIR)/common/scripts/pre-push"   "$$hooks/pre-push"; \
+	 ln -sfr "$(CURDIR)/common/scripts/commit-msg" "$$hooks/commit-msg"; \
+	 echo "[install-hooks] ✅ pre-push / commit-msg を common/scripts/ へ相対リンクしました（$$hooks）"

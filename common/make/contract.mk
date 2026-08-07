@@ -19,8 +19,21 @@ all: audit-all test req-coverage tier-tripwire
 
 # git フック（pre-push・commit-msg）をローカルに導入する。
 # 実体は共通側に置き、プロジェクトにはコピーを残さない（参照方式）。
+#
+# 【-r（相対リンク）は必須である。2026-08-07 に絶対リンクで実害が出た】
+# devcontainer 内で実行すると COMMON_ROOT はコンテナ内のパスに解決される。そのリンクは
+# ホストのターミナルからは解決できず、**git は解決できないシンボリックリンクを「フックが無い」と
+# 同じに扱う**ため、何のメッセージも出さずに素通りする。sumai-desk で pre-push が黙って
+# 走らない状態が実際に発生した。相対なら、リポジトリが基盤の projects/ 配下にある限り
+# （ADR-010 の前提）ホストでもコンテナでも同じ実体に解決される。
+# 張られた結果が相対であることは check-git-hooks.sh が機械検査する。
+#
+# --git-common-dir を使うのは、worktree では --git-dir がワークツリー専用ディレクトリを返す
+# 一方、git が読むのは共有側だから（専用側へ張ると1回も走らないフックができる）。
+# --path-format=absolute を付けるのは、素の出力が呼び出し元の作業ディレクトリ基準の
+# 相対パスになり、make -C やサブディレクトリからの実行で別の場所を指すため。
 install-hooks:
-	@hooks="$$(git -C "$(PROJECT_ROOT)" rev-parse --git-dir)/hooks"; \
-	 ln -sf "$(COMMON_ROOT)/common/scripts/pre-push"   "$$hooks/pre-push"; \
-	 ln -sf "$(COMMON_ROOT)/common/scripts/commit-msg" "$$hooks/commit-msg"; \
-	 echo "[install-hooks] ✅ pre-push / commit-msg を共通側へリンクしました"
+	@hooks="$$(git -C "$(PROJECT_ROOT)" rev-parse --path-format=absolute --git-common-dir)/hooks"; \
+	 ln -sfr "$(COMMON_ROOT)/common/scripts/pre-push"   "$$hooks/pre-push"; \
+	 ln -sfr "$(COMMON_ROOT)/common/scripts/commit-msg" "$$hooks/commit-msg"; \
+	 echo "[install-hooks] ✅ pre-push / commit-msg を共通側へ相対リンクしました（$$hooks）"
