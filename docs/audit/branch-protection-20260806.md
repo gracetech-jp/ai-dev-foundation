@@ -82,7 +82,10 @@ push でしか走らないワークフローのジョブを必須にすると、
 2. ADR-016（リリースフェーズ）でテスト系を `ci.yml`／reusable 側へ移し、`deploy.yml` は
    デプロイだけを持つ形にする（設計としてはこちらが正しい）
 
-**したがって sumai-desk は今回の保護対象から外す**（保留の判断と理由: §5-1）。
+**したがって sumai-desk は今回の保護対象から外す**（判断と理由: §5-1）。
+
+> **追記（2026-08-07）**: ここに書いた「PR でテストが走らない」は `deploy.yml` への
+> `pull_request` 追加で**解消した**。ただし別のプラン制約により保護自体が設定できない（§5-1）。
 
 ---
 
@@ -188,7 +191,98 @@ CLAUDE.md の「MVP 開発フェーズ中は main 直 push を例外的に許可
 
 ---
 
-## 5-1. `sumai-desk` は今回の対象から外す（保留・2026-08-06 決定）
+## 5-1. `sumai-desk` はプラン制約により設定できない（2026-08-07 更新）
+
+> **この節は 2026-08-07 に差し替えた。** 旧題は「今回の対象から外す（保留・2026-08-06 決定）」。
+> **保留の理由（PR でテストが走らない）は解消したが、別の理由で設定できないことが判明した**ため、
+> 「保留」ではなく「**プラン制約により設定不能**」として記録し直す。旧文は下に残す。
+
+### 保留理由は解消した
+
+`deploy.yml` に `pull_request` トリガを追加済み（compose 化と同じ回。下の「先に片付けること」の
+案1を実施）。**PR の時点でテスト系ゲートが全部走る**ようになり、「PR は緑だがテストは未実行」は
+解消した。実測した チェック名は §5-1-1。
+
+### しかし設定できない
+
+**GitHub Free の private リポジトリではルールセットが強制されない。** 画面に出る警告:
+
+> Your rulesets won't be enforced on this private repository until you
+> upgrade this organization account to GitHub Team.
+
+この文書の冒頭が「public 化でブランチ保護が無料で使えるようになった」と書いているのは、
+まさにこの制約を外すために基盤リポを public にしたからである。**`sumai-desk` は private のままで
+あり、同じ制約の下にある。**
+
+**課金（GitHub Team へのアップグレード）も public 化も行わない判断をした（2026-08-07）。**
+
+したがってこの状態は「保留」ではない。**保留は作業待ちを意味し、片付ければ入る、と読める。
+ここはそうではない**——こちらが何を片付けても、プランかリポジトリの可視性が変わらない限り入らない。
+条件が変わる経路は2つしかなく、どちらも採らないと決めた:
+
+| 経路 | 判断 |
+|---|---|
+| org を GitHub Team へ上げる | **採らない**（課金しない） |
+| リポジトリを public 化する | **採らない** |
+
+### 保護されないまま残るものを明記する
+
+`sumai-desk` の `main` は**機械的には保護されない**。CI が赤でもマージでき、force push も削除も
+API 上は通る。効いているのは次だけである。
+
+- **CI**: PR で ci.yml / deploy.yml の全ゲートが走る（赤は目で見える。**止めはしない**）
+- **pre-push フック**: push 前に4段ゲート（ホストからでも走るようになった。2026-08-07）
+
+**「保護したつもり」で放置される状態より観測しやすい**という §5-1 旧文の理屈はそのまま生きている。
+違うのは、片付ければ入る見込みが**無い**ことである。
+
+### 5-1-1. 実測した contexts（2026-08-07）
+
+条件が変わって設定できるようになったときにそのまま使えるよう、**PR イベントで実際に報告された
+チェック名**を残す。取得方法は `gh api repos/gracetech-jp/sumai-desk/actions/runs/<id>/jobs`
+（`Checks` API は PAT の権限外で 403 のため、Actions API から採った）。
+
+| ワークフロー | チェック名 | 結果 |
+|---|---|---|
+| `ci.yml`（run 31157261443） | `req-coverage` `tier-tripwire` `secret-scan` `migration-import-guard` | success |
+| `deploy.yml`（run 31157261444） | `test-backend` `test-frontend` `typecheck-frontend` `audit-dependencies` `consistency` `migration-check` | success |
+| `deploy.yml`（同上） | `lint-backend (bandit)` `lint-backend (mypy)` `lint-backend (ruff)` | success |
+| `deploy.yml`（同上） | `build` `deploy-production` | **skipped** |
+
+**実測は 13 件が実行、2 件が skip**（2026-08-07T07:20Z / head `2f47ecf`）。
+
+### contexts に指定するのは 12 件（実測 13 件から `audit-dependencies` を除く）
+
+| | 件数 | 内訳 |
+|---|---|---|
+| 実行された | 13 | 上表の success 全件 |
+| skip された | 2 | `build` / `deploy-production` |
+| **contexts に指定する** | **12** | 実行 13 件 − `audit-dependencies` |
+
+**`audit-dependencies` を必須チェックから外す理由: 外部のアドバイザリ DB を引くため、
+コードを1行も触っていないのに赤くなる。** 実際に 2026-08-06 に赤くなった実績がある。
+
+必須チェックにすると、**こちらの変更と無関係な事象でマージが止まる**。
+止まった側にできることは「待つ」か「保護を一時的に外す」しかなく、後者が習慣になると保護そのものが
+形骸化する。依存の脆弱性は**見えるべきだが、マージの可否を握らせるべきではない**——
+ジョブは残して赤は目に入るようにし、ブロックだけさせない。
+
+これは「赤は本物の違反にのみ予約する」（`docs/rules/quality-gates.md` §4）と同じ判断であり、
+外部要因で赤くなるものを必須チェックへ入れない、という一般則として扱う。
+
+契約として効くのは次の2点である。
+
+- **`lint-backend` は matrix なので3件に展開される。** チェック名は `lint-backend (bandit)` の形で、
+  **`lint-backend` という名前のチェックは存在しない**。宣言に素の `lint-backend` を書くと、
+  報告されない名前を必須にすることになり **PR が永久にブロックされる**
+  （`check-required-checks.sh` の冒頭が「限界」として挙げている matrix の形そのもの）
+- **`build` / `deploy-production` は contexts に入れない。** PR では
+  `if: github.event_name == 'workflow_dispatch'` で常に skip される。必須にすると
+  「skip を合格として扱うか」に依存してしまう（`ci / gates-db` を入れない §6-1 と同じ方針）
+
+---
+
+### 旧文（2026-08-06 の保留判断。経緯として残す）
 
 **理由: PR でテストが走らない状態で保護を入れると、「PR は緑だがテストは未実行」が
 “機械が保証した緑”に見えるようになるから。**保護を入れること自体が、この基盤が繰り返し
@@ -216,7 +310,13 @@ CLAUDE.md の「MVP 開発フェーズ中は main 直 push を例外的に許可
 
 ## 6. 【D】最終的な設定内容
 
-**対象は `ai-dev-foundation` と `grace-tech-hp` の2本**（`sumai-desk` は §5-1 のとおり保留）。
+> **訂正（2026-08-07）: 実際に設定できるのは `ai-dev-foundation` の1本だけである。**
+> `grace-tech-hp` も `sumai-desk` も **private** であり（2026-08-07 に API で実測。基盤のみ public）、
+> §5-1 のプラン制約に等しく該当する。GitHub Free の private リポジトリではルールセットが強制されない。
+> 基盤リポを public にしたのは、まさにこの制約を外すためだった（冒頭）。
+> 以下の設定内容は、条件が変わったときにそのまま使える形で残す。
+
+~~**対象は `ai-dev-foundation` と `grace-tech-hp` の2本**~~（`sumai-desk` は §5-1 のとおり保留）。
 2本とも同じ形にする。違うのは `contexts` だけ。
 
 | 設定項目 | 値 | 備考 |
@@ -238,9 +338,9 @@ CLAUDE.md の「MVP 開発フェーズ中は main 直 push を例外的に許可
 
 | リポジトリ | contexts | 注意 |
 |---|---|---|
-| `ai-dev-foundation` | `audit` / `lint` / `test` / `req-coverage` / `tier-tripwire` / `secret-scan` | **`selftest / *` を入れない**（workflow_dispatch 限定＝ PR で報告されず永久ブロック） |
-| `grace-tech-hp` | `stack-gates` / `req-coverage` / `tier-tripwire` / `audit` / `secret-scan` | `display-green` は**入れない**。§6-2 のとおり同時に廃止する |
-| ~~`sumai-desk`~~ | **保留**（§5-1） | PR でテストが走らないため、保護を入れると空虚な緑を機械が裏書きする |
+| `ai-dev-foundation`（public・**設定可**） | `audit` / `lint` / `test` / `req-coverage` / `tier-tripwire` / `secret-scan` | **`selftest / *` を入れない**（workflow_dispatch 限定＝ PR で報告されず永久ブロック） |
+| `grace-tech-hp`（private・**設定不能**） | `stack-gates` / `req-coverage` / `tier-tripwire` / `audit` / `secret-scan` | プラン制約（§5-1）。`display-green` は**入れない**。§6-2 のとおり同時に廃止する |
+| `sumai-desk`（private・**設定不能**） | §5-1-1 の **12件**（実測13件 − `audit-dependencies`） | プラン制約（§5-1）。`lint-backend` は matrix で3件に展開される。`audit-dependencies` は外部DB由来で赤くなるため除く |
 
 ADR-011 の reusable へ移行した後は、サービス側の contexts を
 **`ci / gates`**（＋ `ci / secret-scan`）へ張り替える。`ci` は各プロジェクトの `ci.yml` が置く
@@ -261,10 +361,13 @@ ADR-011 の reusable へ移行した後は、サービス側の contexts を
 
 1. `grace-tech-hp` の `feature/reference-only-common-assets`（未 push・2コミット）を先に PR で入れる。
    保護を入れてからだと、最初の PR が「保護を入れた直後の作業」になって切り分けが難しい
-2. **2リポジトリ**（基盤・HP）に §6 の設定を入れる（`contexts` は §6-1）
+2. ~~**2リポジトリ**（基盤・HP）に §6 の設定を入れる~~ → **基盤（public）の1本のみ**（2026-08-07 訂正・§6）
 3. HP の `display-green` を削除するコミットを PR で入れる（§6-2）
 4. CLAUDE.md / `docs/rules/git.md` の「main 直 push を例外的に許可」を実態に合わせて更新（§5）
-5. `sumai-desk`: compose 化と同じ回で `deploy.yml` を PR でも走らせる（§5-1）→ その後に保護を入れる
+   → **基盤リポについてのみ**書き換える。HP・sumai-desk は保護が入らないため、
+   「直 push を許可」が実態のまま残る。**3本を同じ文で語らないこと**
+5. ~~`sumai-desk`: compose 化と同じ回で `deploy.yml` を PR でも走らせる → その後に保護を入れる~~
+   → `deploy.yml` の `pull_request` は**実施済み**（2026-08-07）。保護はプラン制約で入らない（§5-1）
 
 ---
 
