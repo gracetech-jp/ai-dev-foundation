@@ -150,6 +150,20 @@ else
 	bash "$fr_script" "$ROOT" || fail=1
 fi
 
+echo "[audit] (8) git フックが作動する状態にあること..."
+# 絶対リンクで張られたフックは、張った環境の外では解決できない。**git は解決できない
+# シンボリックリンクを「フックが無い」と同じに扱う**ため、警告も出さずに素通りする。
+# 2026-08-07 に実際に起きた（devcontainer 内で張り、ホストから push して発覚）。
+# 存在・解決・実行権限だけを見る検査では、監査を走らせる環境では常に緑になり何も捕まらない。
+gh_script="${rc_dir_found:+$rc_dir_found/common/scripts/check-git-hooks.sh}"
+if [ -z "$rc_dir_found" ]; then
+	echo "  ℹ 共通基盤が見つからないため git フックの検査はスキップしました（同上）"
+elif [ ! -r "$gh_script" ]; then
+	report "共通基盤は見つかりましたが $gh_script が読めません（共通ゲートが配られていません）"
+else
+	bash "$gh_script" "$ROOT" || fail=1
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

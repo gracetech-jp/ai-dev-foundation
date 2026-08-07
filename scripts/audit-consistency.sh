@@ -666,6 +666,14 @@ echo "[audit] (17) 共通基盤の ref 二重記述の一致検査..."
 # 二重に書く羽目になった経緯は check-foundation-ref.sh の冒頭と計画書 §8-5。
 bash "$ROOT/common/scripts/check-foundation-ref.sh" "$ROOT" || fail=1
 
+echo "[audit] (18) git フックが作動する状態にあること..."
+# 2026-08-07 追加。**実際に黙って作動しなくなっていたので入れた検査**である（sumai-desk で発覚し、
+# 基盤リポ自身も同じ状態だった）。絶対リンクは張った環境でしか解決せず、git は解決できない
+# シンボリックリンクを「フックが無い」と同じに扱う——警告なしで素通りする。
+# 検査の主眼が「リンクが相対であること」でなければならない理由（存在・解決・実行権限だけでは
+# 監査環境で常に緑になる）は check-git-hooks.sh の冒頭に書いた。
+bash "$ROOT/common/scripts/check-git-hooks.sh" "$ROOT" || fail=1
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

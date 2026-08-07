@@ -21,6 +21,12 @@ make_sandbox() {
 	cp "$REPO/docs/README.md" "$SB/docs/"   # 検査層(12) 所在の正本（各階層 README）の対象
 	cp "$REPO/.claude/settings.json" "$SB/.claude/"
 	cp -a "$REPO/.claude/scripts" "$REPO/.claude/skills" "$REPO/.claude/agents" "$SB/.claude/"
+	# 検査層(18)（git フックが作動する状態にあるか）は git リポジトリを要求する。
+	# サンドボックスは複製なので .git を持たない——初期化し、正しい形（相対リンク）で
+	# フックを張っておく。壊した場合の挙動は専用の配線テストで見る。
+	git -C "$SB" init -q
+	ln -sfr "$SB/common/scripts/pre-push"   "$SB/.git/hooks/pre-push"
+	ln -sfr "$SB/common/scripts/commit-msg" "$SB/.git/hooks/commit-msg"
 }
 
 audit() { (cd "$SB" && bash scripts/audit-consistency.sh); }
@@ -639,6 +645,18 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	YAML
 	run audit
 	[ "$status" -eq 0 ]
+}
+
+@test "赤: git フックが絶対リンクだと検査(18)が fail する（配線されていること）" {
+	# 検査の中身は tests/check-git-hooks.bats が固定している。ここで見るのは
+	# 「監査から実際に呼ばれているか」——呼び出しが外れても他は緑のままなので単体では気づけない。
+	# CI を空にするのは、本体が CI ではフックを判定しないため（CI 上で走らせると
+	# このテスト自体が空撃ちになる）。
+	make_sandbox
+	ln -sf "$SB/common/scripts/pre-push" "$SB/.git/hooks/pre-push"
+	CI= run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"絶対パス"* ]]
 }
 
 @test "赤: selftest の foundation-ref が uses とずれると検査(17)が fail する（配線されていること）" {
