@@ -27,7 +27,16 @@
 | `make install-hooks` | git フック（pre-push・commit-msg 等）をローカルに導入 |
 
 ## 2. push前ゲート（pre-push フック）
-- push 前に **`make audit-all` → `make test` → `make req-coverage` → `make tier-tripwire`** を順に実行し、
+- **フックは CI の高速な部分集合である。** CI が権威あるゲートで、フックは速いフィードバックを返す
+  ためだけにある。**フックに無いものが CI にあると「push して数分後に単純な問題で落ちる」**——
+  2026-08-07 に実際に踏んだ（shellcheck の info 1件で CI が赤、ローカルは緑）。
+  配置の基準は**速度**で、秒で終わるものはフック、分単位かかるものは CI に置く。
+  両方で走る重複は正常であって無駄ではない（権威はあくまで CI 側）。
+- 最初に **`make lint`** を実行する（shellcheck 系は秒で終わるので最速の指摘を先に返す）。
+  判定は `run-gates.sh` の `optional` モード——**lint が未実装（TODO=exit 3）でも、ターゲットが
+  無くても push は止めない**。共通フックは全リポジトリ共有であり、契約違反を赤にするのは
+  CI（`softable`）の役目である。これはベストプラクティスではなく未実装スタックへの実装上の工夫。
+- 続いて **`make audit-all` → `make test` → `make req-coverage` → `make tier-tripwire`** を順に実行し、
   失敗したら push をブロックする（`make all` と同じ4段。req-coverage / tier-tripwire がCIのみで強制されると
   要件未達の検出が push 後まで遅れるため、2026-07-22 にローカル側も4段へ揃えた）。
   機微面を持たないリポジトリは、機微パターンを空にしたうえで `docs/requirements/.tier-tripwire-none` を

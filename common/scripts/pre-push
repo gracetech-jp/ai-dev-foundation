@@ -7,6 +7,35 @@
 
 ROOT="$(git rev-parse --show-toplevel)"
 
+# 共通スクリプトの所在。このフックは .git/hooks から共通側への symlink なので、
+# 実体の位置は readlink -f で解く（相対リンクなのでホストでもコンテナでも同じ実体に届く）。
+COMMON_SCRIPTS="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+
+# lint を**先頭**に置く。理由は速度で、shellcheck 系は秒で終わる一方、下の4段は分単位かかる。
+# 単純な指摘ほど早く返す（この順にしないと「数分待って警告1件で落ちる」になる）。
+#
+# 【なぜここに lint があるのか（2026-08-07 追加）】
+# CI は lint / audit / test / req-coverage / tier-tripwire / secret-scan を回すが、
+# フック側は4段しか無く、**lint だけフックに無い**状態だった。フックに無く CI にあるものは
+# 「push して数分後に単純な問題で落ちる」フィードバックループを作る——実際に踏んだ
+# （SC2015 の info 1件で CI が赤。ローカルは緑）。CI が権威あるゲート、フックはその**高速な部分集合**、
+# という役割分担に揃える。両方で走る重複は正常であって、無駄ではない。
+#
+# 【optional を使う理由】
+# 共通の pre-push は全リポジトリが共有する。lint が未実装（TODO=exit 3）でも、そもそも
+# ターゲットが無くても、**push を止めない**。フックは便宜であって権威ではなく、契約違反を
+# 赤にする役目は CI（softable）が持つ。判定は run-gates.sh に置いてあり bats で固定してある。
+echo "[pre-push] lint（静的解析）を実行中..."
+if ! bash "$COMMON_SCRIPTS/run-gates.sh" "$ROOT" optional:lint; then
+  echo ""
+  echo "[pre-push] ❌ lint が失敗しました。push をブロックします。"
+  echo "           警告を解消してから再度 push してください（ゼロ警告ゲート）。"
+  echo "           チェックをスキップする場合: git push --no-verify"
+  exit 1
+fi
+echo "[pre-push] ✅ lint 通過"
+
+echo ""
 echo "[pre-push] 整合性監査（grep整合性・構造監査・マイグレーションdrift）を実行中..."
 if ! (cd "$ROOT" && make audit-all); then
   echo ""

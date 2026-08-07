@@ -94,6 +94,36 @@ make_project() {
 
 # ---- 呼び出し方の誤りは fail-closed ----
 
+# ---- optional（pre-push 専用。フックは便宜であって権威ではない） ----
+
+@test "緑: optional はターゲット未定義でも soft（lint 未実装のリポジトリで push を止めない）" {
+	make_project      # lint ターゲットは書いていない
+	run bash "$SUT" "$P" optional:lint
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"定義されていない"* ]]
+}
+
+@test "赤: softable はターゲット未定義なら red のまま（CI の fail-closed 契約を変えない）" {
+	# optional と softable の違いはここだけ。CI 側の契約まで緩めていないことを固定する。
+	make_project
+	run bash "$SUT" "$P" softable:lint
+	[ "$status" -eq 1 ]
+}
+
+@test "緑: optional は TODO(exit 3) も soft（softable と同じ扱い）" {
+	make_project
+	run bash "$SUT" "$P" optional:todo
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"TODO"* ]]
+}
+
+@test "赤: optional でも本物の違反は red（未定義でも TODO でもない失敗は通さない）" {
+	make_project
+	run bash "$SUT" "$P" optional:broken
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"本物の違反"* ]]
+}
+
 @test "exit 2: 引数不足は fail-closed" {
 	run bash "$SUT" "$P"
 	[ "$status" -eq 2 ]

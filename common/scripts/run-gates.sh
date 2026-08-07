@@ -22,6 +22,7 @@
 #   run-gates.sh <project-root> <mode:target> [<mode:target> ...]
 #     mode = hard     … 失敗したら red（req-coverage / tier-tripwire / audit-all）
 #            softable … 失敗が TODO（exit 3）なら warning、それ以外は red（lint / test / audit-deps）
+#            optional … softable に加え、**ターゲット未定義**でも warning（pre-push 専用。下記）
 #            auto     … .coverage-floor を読んで切り替える（coverage 専用）
 #   例: run-gates.sh . hard:audit-all softable:lint softable:test auto:coverage hard:req-coverage
 #
@@ -41,6 +42,17 @@ fail=0
 # make が TODO 契約（exit 3）で落ちたか。出力行で判定する（上記の理由）。
 is_todo() { printf '%s\n' "$1" | grep -qE '^make(\[[0-9]+\])?: \*\*\* .* Error 3$'; }
 
+# ターゲットそのものが Makefile に無いか。これも make が決定論的に出す文言で見る。
+#
+# 【なぜ optional でだけ soft にするのか】
+# contract.mk は「実装しなかった契約ターゲットは make が No rule で失敗する＝黙って通らない」
+# を**意図した fail-closed** としている。CI（softable）はその契約のままでよい——CI は権威ある
+# ゲートであり、契約違反は赤にすべきである。
+# 一方 pre-push は**便宜の高速フィードバック**であって権威ではない。共通の pre-push は全リポジトリが
+# 共有するため、ターゲットが無いだけで push が止まると、この基盤と無関係な理由で作業が止まる。
+# 「CI 側が権威、フック側は便宜」という役割分担に従い、フック側でだけ soft にする。
+is_missing_target() { printf '%s\n' "$1" | grep -qE "No rule to make target"; }
+
 # GitHub Actions のアノテーション。CI 外では単なる行として出るだけで害はない。
 warn() { echo "::warning::[gates] $1"; }
 
@@ -53,9 +65,13 @@ run_one() { # <mode> <target>
 		return 0
 	fi
 	case "$mode" in
-		softable)
+		softable|optional)
 			if is_todo "$out"; then
 				warn "$target は未実装(TODO=exit 3)のため soft 扱い（実装すると自動で red 化）"
+				return 0
+			fi
+			if [ "$mode" = optional ] && is_missing_target "$out"; then
+				warn "$target がこのリポジトリに定義されていないため soft 扱い（CI 側は red のまま）"
 				return 0
 			fi
 			;;
@@ -78,7 +94,7 @@ for spec in "$@"; do
 	target="${spec#*:}"
 	[ -n "$target" ] || die "ターゲット名が空です: '$spec'"
 	case "$mode" in
-		hard|softable) ;;
+		hard|softable|optional) ;;
 		auto)
 			# カバレッジのラチェットは floor=0 の間は何も守っていないため soft。
 			# floor を 1 以上にした時点で自動的に hard へ移行する（人手の設定変更を要さない）。
