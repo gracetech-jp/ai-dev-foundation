@@ -674,6 +674,13 @@ echo "[audit] (18) git フックが作動する状態にあること..."
 # 監査環境で常に緑になる）は check-git-hooks.sh の冒頭に書いた。
 bash "$ROOT/common/scripts/check-git-hooks.sh" "$ROOT" || fail=1
 
+echo "[audit] (19) コミット identity がローカル上書きされていないこと..."
+# 2026-08-08 追加。sumai-desk で 346 件が個人アドレスで記録されていた（global は法人アドレス
+# だが local が勝つ）。**コミットは成功し、CI も赤にならず、GitHub 上も本人のコミットに見える**——
+# 気づく契機が1つも無い類型なので機械で見る。値そのものは判定しない理由（共通側に identity を
+# 持たせると共同作業者・別法人の案件で破綻する）は check-git-identity.sh の冒頭に書いた。
+bash "$ROOT/common/scripts/check-git-identity.sh" "$ROOT" || fail=1
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

@@ -164,6 +164,20 @@ else
 	bash "$gh_script" "$ROOT" || fail=1
 fi
 
+echo "[audit] (9) コミット identity がローカル上書きされていないこと..."
+# `.git/config` の user.email が global を上書きしていると、このリポジトリのコミットだけ
+# 別人名義で記録される。**コミットは成功し、CI も赤にならず、GitHub 上も本人のコミットに
+# 見える**ため、気づく契機が1つも無い（2026-08-08 に実際に 346 件が個人アドレスだった）。
+# 「正しいアドレス」は共通側が知らない。local と global が食い違うことだけを見る。
+gi_script="${rc_dir_found:+$rc_dir_found/common/scripts/check-git-identity.sh}"
+if [ -z "$rc_dir_found" ]; then
+	echo "  ℹ 共通基盤が見つからないため identity の検査はスキップしました（同上）"
+elif [ ! -r "$gi_script" ]; then
+	report "共通基盤は見つかりましたが $gi_script が読めません（共通ゲートが配られていません）"
+else
+	bash "$gi_script" "$ROOT" || fail=1
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
 	echo "[audit] ❌ 整合性監査で問題を検出しました。"

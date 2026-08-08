@@ -647,6 +647,19 @@ drop_deny_from() { # <$SB からの相対パス> <ルール文字列>
 	[ "$status" -eq 0 ]
 }
 
+@test "赤: コミット identity のローカル上書きで検査(19)が fail する（配線されていること）" {
+	# 検査の中身は tests/check-git-identity.bats が固定している。ここで見るのは
+	# 「監査から実際に呼ばれているか」——呼び出しが外れても他は緑のままなので気づけない。
+	# global が無いと未判定になるため、サンドボックス専用の HOME を用意して両方を設定する。
+	make_sandbox
+	H="$BATS_TEST_TMPDIR/idhome"; mkdir -p "$H"
+	HOME="$H" git config --global user.email "corp@example.com"
+	git -C "$SB" config --local user.email "personal@example.net"
+	HOME="$H" run audit
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"ローカル設定で上書き"* ]]
+}
+
 @test "赤: git フックが絶対リンクだと検査(18)が fail する（配線されていること）" {
 	# 検査の中身は tests/check-git-hooks.bats が固定している。ここで見るのは
 	# 「監査から実際に呼ばれているか」——呼び出しが外れても他は緑のままなので単体では気づけない。
