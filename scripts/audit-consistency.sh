@@ -17,6 +17,15 @@ report() {
 	fail=1
 }
 
+# ── 前半: 共通監査 ────────────────────────────────────────────────────────
+# 共通検査の実体と一覧は common/scripts/run-common-audits.sh にある。ここは1行で呼ぶだけ。
+# **番号を振らない**のが要点で、共通側に検査を足しても下の (N) と衝突しない
+# （共通と固有が同じ番号空間を共有していたのが、これまで衝突の元だった）。
+# 第2引数は「このリポジトリが把握している検査集合の版」。ずれると赤になる（ドリフト検出）。
+bash "$ROOT/common/scripts/run-common-audits.sh" "$ROOT" 1 || fail=1
+echo ""
+
+# ── 後半: この基盤リポジトリ固有の検査 ────────────────────────────────────
 echo "[audit] (1) ドキュメントのリンク切れ検査..."
 # CLAUDE.md および docs/rules 配下が参照する docs/rules/*.md が実在するか。
 # 'xxx.md' は「詳細: docs/rules/xxx.md」形式の説明用プレースホルダなので除外する。
@@ -564,71 +573,9 @@ else
 		|| report "隔離境界の退化: .devcontainer/Dockerfile が /home/node/.claude-state を作っていません（名前付きボリュームが root 所有で初期化され、node が書けなくなります）"
 fi
 
-echo "[audit] (14) 二重化の突合（第2層 permissions.deny ↔ 第3層 PreToolUse フック）..."
-# ADR-012 決定4: deny で表現できる判定は deny へ**追加**し、フックにも残す（二重化）。
-# 冗長化の根拠は「片方が漏れるから」ではなく、**2つの層が独立に失敗する**こと——
-# deny は例外を書けずに失敗し、フックは見つからずに失敗する。原因が共通していないため、
-# simplicity-in-security（同一理由で壊れる重複は避ける）の例外にあたる。
-#
-# 逆に言えば、**片側だけが消えた瞬間に二重化は成立しなくなる**。しかも消えても何も起きない
-# （テストは緑、コンテナは動く）。人手のレビューでは検出できないので機械で見る。
-#
-# 新しい正本ファイルは作らない。作ると「4箇所目の重複」になる（検査(7)が共通所有ロックで
-# 採ったのと同じ判断）。フック側はマーカー、deny 側は settings.json から抜き出して突合する。
-DUAL_LAYER=(
-	# 判定ID:必須の deny ルール（フック側は `# @dual-layer: <ID>` のマーカーで対応づける）
-	"A2:Bash(git push:*)"              # force push（push 全体を deny しているため --force も覆える）
-	"A3:Bash(git reset *--hard*)"      # 履歴破棄。フラグ位置に依存しない形
-	"A4:Bash(git clean -f*)"           # 作業ツリー破棄。-n/--dry-run は通す（例外はフック側が持つ）
-	"A6:Bash(git checkout -- *)"       # パス指定による変更破棄
-)
-# 「1件でもあれば緑」では大半が消えても素通りするため、これが消えたら意味を失うものを個別に要求する
-# （検査(7) の LOCK_CORE と同型。2026-08-04 追加）。追加時は理由を1行残すこと。
-DENY_CORE=(
-	"Bash(rm -rf:*)"          # 再帰強制削除の代表形
-	"Bash(sudo rm:*)"         # sudo 経由の削除
-	"Read(**/.env)"           # 秘密ファイルのツール経路（bash 経路はフックが担う）
-	"Read(**/.ssh/**)"        # 秘密鍵
-	"Read(**/.aws/**)"        # クラウド認証情報
-)
-GUARD_HOOK="$ROOT/.claude/scripts/guard-dangerous.sh"
-if command -v jq >/dev/null 2>&1 && [ -f "$GUARD_HOOK" ]; then
-	dual_settings=("$ROOT/.claude/settings.json" "$ROOT/profiles/_base/.claude/settings.json")
-	for pset in "$ROOT"/profiles/*/files/.claude/settings.json; do
-		[ -f "$pset" ] && dual_settings+=("$pset")
-	done
-	deny_has() { # <settings.json> <ルール文字列>
-		jq -e --arg r "$2" '.permissions.deny // [] | index($r)' "$1" >/dev/null 2>&1
-	}
-	for entry in "${DUAL_LAYER[@]}"; do
-		id="${entry%%:*}"; rule="${entry#*:}"
-		# ① 第3層: フックに判定が残っていること
-		grep -qE "^[[:space:]]*#[[:space:]]*@dual-layer:[[:space:]]*${id}([^0-9A-Za-z]|$)" "$GUARD_HOOK" \
-			|| report "二重化の退化: フック $( basename "$GUARD_HOOK" ) に判定 $id のマーカーがありません（第3層から判定が消えた可能性。ADR-012 決定4）"
-		# ② 第2層: 4本すべての deny に対応ルールがあること
-		for sf in "${dual_settings[@]}"; do
-			deny_has "$sf" "$rule" \
-				|| report "二重化の退化: ${sf#"$ROOT"/} の deny に判定 $id の '$rule' がありません（第2層から判定が消えたか、4本の同期漏れ）"
-		done
-	done
-	# ③ 逆方向: フックにマーカーがあるのに対応表に無い（実装だけ増えて突合が空回りするのを防ぐ）
-	while IFS= read -r id; do
-		[ -n "$id" ] || continue
-		found=0
-		for entry in "${DUAL_LAYER[@]}"; do [ "${entry%%:*}" = "$id" ] && found=1; done
-		[ "$found" -eq 1 ] \
-			|| report "二重化の突合漏れ: フックに @dual-layer: $id があるのに audit-consistency.sh の DUAL_LAYER に登録がありません"
-	done < <(sed -n 's/^[[:space:]]*#[[:space:]]*@dual-layer:[[:space:]]*\([0-9A-Za-z]*\).*/\1/p' "$GUARD_HOOK" | sort -u)
-	# ④ deny のコアが4本すべてに実在すること
-	for core in "${DENY_CORE[@]}"; do
-		for sf in "${dual_settings[@]}"; do
-			deny_has "$sf" "$core" \
-				|| report "deny コアの退化: ${sf#"$ROOT"/} の deny に '$core' がありません"
-		done
-	done
-elif [ ! -f "$GUARD_HOOK" ]; then
-	report "$GUARD_HOOK がありません（第3層の実体が消えています。ADR-012）"
-fi
+# （旧(14) 二重化の突合は common/scripts/check-guardrail-duplication.sh へ抽出し、
+#   冒頭の共通監査から呼ぶ。配布雛形の検査(5)と DUAL_LAYER 配列を二重に持っていたため
+#   1本化した。2026-08-08・docs/audit/audit-script-drift-20260808.md）
 
 echo "[audit] (15) ワークフロー式の文脈検査（GitHub Actions）..."
 # GitHub Actions は式で参照できる文脈が場所ごとに違う。**使えない文脈を書くとファイル全体が
@@ -654,32 +601,9 @@ for wf in "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/actions/*/action.yml; 
 	fi
 done
 
-echo "[audit] (16) 必須ステータスチェック宣言の検査..."
-# ブランチ保護の設定は GitHub 側にあり、ここからは見えない。**設定が正しいことは機械化できないが、
-# 設定できる形になっていることは機械化できる**。実装は共通側に1本だけ置き、配布雛形からも同じものを
-# 呼ぶ（ADR-010: 実体は1つ・参照する）。検査の中身と限界は check-required-checks.sh の冒頭に書いた。
-bash "$ROOT/common/scripts/check-required-checks.sh" "$ROOT" || fail=1
+# （旧(16)〜(19) 必須チェック宣言 / ref 一致 / git フック / identity は共通監査へ移設した。
+#   共通側に検査を足すだけで配布先へ届く形にするため。2026-08-08）
 
-echo "[audit] (17) 共通基盤の ref 二重記述の一致検査..."
-# `uses: ...@X` と `foundation-ref: Y` がずれても**赤くならない**（ゲートは走って緑になり、
-# 違うのは「どの版のゲートで検査したか」だけ）。症状の出ない食い違いなので機械で見る。
-# 二重に書く羽目になった経緯は check-foundation-ref.sh の冒頭と計画書 §8-5。
-bash "$ROOT/common/scripts/check-foundation-ref.sh" "$ROOT" || fail=1
-
-echo "[audit] (18) git フックが作動する状態にあること..."
-# 2026-08-07 追加。**実際に黙って作動しなくなっていたので入れた検査**である（sumai-desk で発覚し、
-# 基盤リポ自身も同じ状態だった）。絶対リンクは張った環境でしか解決せず、git は解決できない
-# シンボリックリンクを「フックが無い」と同じに扱う——警告なしで素通りする。
-# 検査の主眼が「リンクが相対であること」でなければならない理由（存在・解決・実行権限だけでは
-# 監査環境で常に緑になる）は check-git-hooks.sh の冒頭に書いた。
-bash "$ROOT/common/scripts/check-git-hooks.sh" "$ROOT" || fail=1
-
-echo "[audit] (19) コミット identity がローカル上書きされていないこと..."
-# 2026-08-08 追加。sumai-desk で 346 件が個人アドレスで記録されていた（global は法人アドレス
-# だが local が勝つ）。**コミットは成功し、CI も赤にならず、GitHub 上も本人のコミットに見える**——
-# 気づく契機が1つも無い類型なので機械で見る。値そのものは判定しない理由（共通側に identity を
-# 持たせると共同作業者・別法人の案件で破綻する）は check-git-identity.sh の冒頭に書いた。
-bash "$ROOT/common/scripts/check-git-identity.sh" "$ROOT" || fail=1
 
 echo ""
 if [ "$fail" -ne 0 ]; then
